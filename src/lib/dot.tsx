@@ -1,0 +1,1 @@
+export const Dot = () => <span className="inline-block size-1.5 rounded-full bg-black/60" />;
