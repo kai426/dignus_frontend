@@ -15,8 +15,7 @@ import { useUploadVideoResponse } from "@/hooks/useMedia"; // Hook V2 de upload
 import { useStartTest } from "@/hooks/useTestActions"; // Hook V2 de start
 import { VideoResponseType } from "@/api/apiPaths"; // Enum V2
 
-const READING_LIMIT_SECONDS = 60 * 2; // Exemplo: 2 minutos para leitura
-const TOTAL_MINUTES = 5; // Tempo total estimado (apenas para info, não funcional)
+const READING_LIMIT_SECONDS = 60 * 1; // Exemplo: 2 minutos para leitura
 
 type Props = {
   testId: string; // ID da instância do teste (V2)
@@ -24,6 +23,7 @@ type Props = {
   readingTextId?: string; // ID do texto de leitura (V2)
   textToRead?: string; // Conteúdo do texto
   onFinished: () => void; // Callback para ir para próxima etapa
+  readingTimeSeconds: number;
 };
 
 export function PortugueseReadingStage({
@@ -31,7 +31,8 @@ export function PortugueseReadingStage({
     candidateId,
     readingTextId, // Pode não ser necessário para o upload, mas bom ter
     textToRead,
-    onFinished
+    onFinished,
+    readingTimeSeconds
 }: Props) {
   // Estados do MediaStore
   const mirror = useMediaStore((s) => s.mirror);
@@ -48,7 +49,7 @@ export function PortugueseReadingStage({
 
   // Hook de gravação
   const { start, stop, recording, elapsed, videoBlob, error, setSourceStream } =
-    useRecorder(READING_LIMIT_SECONDS);
+    useRecorder(readingTimeSeconds)
 
   // Estados locais da UI
   const [openStart, setOpenStart] = useState(false);
@@ -97,7 +98,7 @@ export function PortugueseReadingStage({
         videoBlob: videoBlob,
         fileName: `leitura_${candidateId}_${testId}.webm`, // Nome mais descritivo
         responseType: VideoResponseType.Reading, // Tipo V2: Leitura
-        questionNumber: 0, // Usar 0 ou 1 para leitura, consistência é chave
+        questionNumber: 1, // Usar 0 ou 1 para leitura, consistência é chave
         // questionSnapshotId: undefined, // Leitura não tem snapshot de questão, mas pode ter do texto
         // O backend pode associar pelo testId e responseType = Reading
       },
@@ -142,7 +143,7 @@ export function PortugueseReadingStage({
       {/* Coluna Direita: Vídeo e Controles */}
       <div>
         {/* Preview da Webcam */}
-        <div className="relative overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
+        <div className="relative overflow-hidden mt-9 rounded-lg border border-gray-300 bg-white shadow-sm">
            {/* Overlay de Loading ao iniciar teste */}
            {startTestMutation.isPending && (
              <div className="absolute inset-0 z-10 grid place-items-center bg-black/50 text-white">
@@ -168,7 +169,7 @@ export function PortugueseReadingStage({
 
         {/* Barra de Progresso (só aparece gravando) */}
         {recording && (
-           <TimerProgress elapsed={elapsed} limitSeconds={READING_LIMIT_SECONDS} className="mt-4" />
+           <TimerProgress elapsed={elapsed} limitSeconds={readingTimeSeconds} className="mt-4" />
         )}
 
         {/* Botão Iniciar/Encerrar */}
@@ -205,7 +206,7 @@ export function PortugueseReadingStage({
         <ConfirmStartDialog
           open={openStart}
           onOpenChange={setOpenStart}
-          minutes={Math.ceil(READING_LIMIT_SECONDS / 60)} // Calcula minutos
+          minutes={Math.ceil(readingTimeSeconds / 60)} // Calcula minutos
           onConfirm={handleStart} // Chama a função que inicia teste + gravação
         />
         <ConfirmStopDialog

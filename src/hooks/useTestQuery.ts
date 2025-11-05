@@ -23,7 +23,7 @@ export const useTestQuery = (
     options?: { enabled?: boolean }
 ): UseQueryResult<TestInstanceDto, AxiosError<ApiError>> => {
     // ... (código existente)
-     return useQuery({
+    return useQuery({
         queryKey: ['testInstance', testId, candidateId],
         queryFn: () => {
             if (!testId || !candidateId) {
@@ -42,7 +42,9 @@ export const useTestQuery = (
 const getOrCreateTestApi = async (candidateId: string, testType: TestType): Promise<TestInstanceDto> => {
     // --- CORREÇÃO GET: Enviar nome do enum na query string ---
     // Obtém o nome da string correspondente ao valor numérico do enum
-    const testTypeName = TestType[testType];
+    const testTypeName = (Object.keys(TestType) as (keyof typeof TestType)[]).find(
+        (key) => TestType[key] === testType
+    );
     const getAllPath = API_PATHS.TESTS_V2.GET_ALL_FOR_CANDIDATE(candidateId) + `?testType=${testTypeName}`; // Adiciona ?testType=NomeEnum
 
     // Tenta buscar primeiro
@@ -55,36 +57,36 @@ const getOrCreateTestApi = async (candidateId: string, testType: TestType): Prom
             console.log(`Teste ${testTypeName} existente encontrado: ${existingTest.id}`);
             // Se GET_ALL_FOR_CANDIDATE não retorna todos os detalhes (ex: questions),
             // busca a versão completa. Se já retorna, pode otimizar e retornar direto.
-             try {
+            try {
                 const fullTest = await fetchTestInstance(existingTest.id, candidateId);
                 return fullTest;
-             } catch (fetchFullError) {
-                 console.error(`Erro ao buscar detalhes completos do teste ${existingTest.id}, tentando criar um novo...`, fetchFullError);
-                 // Continua para a criação se buscar detalhes falhar
-             }
+            } catch (fetchFullError) {
+                console.error(`Erro ao buscar detalhes completos do teste ${existingTest.id}, tentando criar um novo...`, fetchFullError);
+                // Continua para a criação se buscar detalhes falhar
+            }
         } else {
-             console.log(`Nenhum teste ${testTypeName} ativo encontrado para ${candidateId}, tentando criar...`);
+            console.log(`Nenhum teste ${testTypeName} ativo encontrado para ${candidateId}, tentando criar...`);
         }
     } catch (error: any) {
         // Log específico para erro 400 na busca, antes de tentar criar
         if (error.isAxiosError && error.response?.status === 400) {
-             console.error(`Erro 400 ao buscar teste ${testTypeName} para ${candidateId}:`, error.response.data);
+            console.error(`Erro 400 ao buscar teste ${testTypeName} para ${candidateId}:`, error.response.data);
         } else {
             console.warn(`Erro ao buscar teste ${testTypeName} existente para ${candidateId}, tentando criar...`, error.message);
         }
-         // Continua para a criação mesmo se a busca falhar (exceto se for um erro inesperado grave)
+        // Continua para a criação mesmo se a busca falhar (exceto se for um erro inesperado grave)
     }
 
-     // --- CORREÇÃO POST: Enviar nome do enum no corpo ---
-     console.log(`Criando novo teste ${testTypeName} para ${candidateId}`);
-     // O payload agora envia o nome do enum como string
-     const createPayload = { candidateId, testType: testTypeName };
-     const createResponse = await apiClient.post<TestInstanceDto>(API_PATHS.TESTS_V2.CREATE, createPayload);
+    // --- CORREÇÃO POST: Enviar nome do enum no corpo ---
+    console.log(`Criando novo teste ${testTypeName} para ${candidateId}`);
+    // O payload agora envia o nome do enum como string
+    const createPayload = { candidateId, testType: testTypeName };
+    const createResponse = await apiClient.post<TestInstanceDto>(API_PATHS.TESTS_V2.CREATE, createPayload);
 
-     console.log(`Teste ${testTypeName} criado com ID: ${createResponse.data.id}. Buscando detalhes...`);
-     // Busca a versão completa após criar para garantir todos os dados (questões, etc.)
-     const createdTestDetails = await fetchTestInstance(createResponse.data.id, candidateId);
-     return createdTestDetails;
+    console.log(`Teste ${testTypeName} criado com ID: ${createResponse.data.id}. Buscando detalhes...`);
+    // Busca a versão completa após criar para garantir todos os dados (questões, etc.)
+    const createdTestDetails = await fetchTestInstance(createResponse.data.id, candidateId);
+    return createdTestDetails;
 }
 
 // Hook useGetOrCreateTestQuery (sem alterações na definição, mas usará a função API corrigida)
@@ -93,10 +95,10 @@ export const useGetOrCreateTestQuery = (
     testType: TestType | undefined,
     options?: { enabled?: boolean }
 ): UseQueryResult<TestInstanceDto, AxiosError<ApiError>> => {
-     return useQuery({
+    return useQuery({
         queryKey: ['getOrCreateTest', candidateId, testType],
         queryFn: () => {
-             if (!candidateId || testType === undefined) {
+            if (!candidateId || testType === undefined) {
                 return Promise.reject(new Error("candidateId ou testType não fornecido para useGetOrCreateTestQuery"));
             }
             // Chama a função corrigida
@@ -106,12 +108,12 @@ export const useGetOrCreateTestQuery = (
         staleTime: 1000 * 60 * 5,
         refetchOnWindowFocus: false,
         retry: 1,
-     });
+    });
 };
 
 export function usePortugueseTestQuery() {
-  return useQuery({
-    queryKey: ["portuguese-test"],
-    queryFn: fetchPortugueseTest,
-  });
+    return useQuery({
+        queryKey: ["portuguese-test"],
+        queryFn: fetchPortugueseTest,
+    });
 }

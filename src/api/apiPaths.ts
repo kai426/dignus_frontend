@@ -1,20 +1,27 @@
 // Define a URL base da API a partir das variáveis de ambiente
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Enum para TestType (valores devem corresponder ao backend)
-export enum TestType {
-    Portuguese = 0,
-    Math = 1,
-    Psychology = 2,
-    VisualRetention = 3,
-    Interview = 5,
-}
+// Enum para TestType (como const)
+export const TestType = {
+    Portuguese: 0,
+    Math: 1,
+    Psychology: 2,
+    VisualRetention: 3,
+    Interview: 5,
+} as const;
 
-// Enum para VideoResponseType (valores devem corresponder ao backend)
-export enum VideoResponseType {
-  Reading = 0,
-  QuestionAnswer = 1,
-}
+// Exporta o *tipo* para uso em outros lugares (isto é "apagável")
+export type TestType = typeof TestType[keyof typeof TestType];
+
+
+// Enum para VideoResponseType (como const e com valores corretos)
+export const VideoResponseType = {
+  Reading: 1,        // Corrigido de 0 para 1
+  QuestionAnswer: 2, // Corrigido de 1 para 2
+} as const;
+
+// Exporta o *tipo*
+export type VideoResponseType = typeof VideoResponseType[keyof typeof VideoResponseType];
 
 // Objeto com os paths da API V2
 export const API_PATHS = {

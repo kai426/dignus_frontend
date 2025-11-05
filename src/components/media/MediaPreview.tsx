@@ -1,19 +1,19 @@
+// src/components/media/MediaPreview.tsx
+
 import { Button } from "@/components/ui/button";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+// Importações adicionadas
+import { Info, AlertCircle, Video, Mic, PlayCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+// Fim das importações adicionadas
 import VideoPreview from "./VideoPreview";
 import AudioMeter from "./AudioMeter";
-import DeviceSelect from "./DeviceSelect";
-import QuickRecord from "./QuickRecord";
-import MediaToggles from "./MediaToggles";
 import { useMediaStore } from "@/store/useMediaStore";
-import { useMemo } from "react";
+import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
+import { useMemo, useEffect } from "react";
 
+// Tipagem das props permanece a mesma
 export type MediaPreviewResult = { stream: MediaStream; cameraId?: string; micId?: string };
 
 interface Props {
@@ -21,8 +21,6 @@ interface Props {
   subtitle?: string;
   ctaLabel?: string;
   onContinue: (r: MediaPreviewResult) => void;
-  enableQuickRecord?: boolean;
-  quickRecordSeconds?: number;
 }
 
 export default function MediaPreview({
@@ -30,127 +28,192 @@ export default function MediaPreview({
   subtitle = "Verifique se câmera e microfone estão funcionando antes de iniciar",
   ctaLabel = "Continuar",
   onContinue,
-  enableQuickRecord = true,
-  quickRecordSeconds = 5,
 }: Props) {
+  // Hooks de estado e dados
   const stream = useMediaStore((s) => s.stream);
   const mirror = useMediaStore((s) => s.mirror);
-  const setMirror = useMediaStore((s) => s.setMirror);
   const cameraId = useMediaStore((s) => s.cameraId);
   const micId = useMediaStore((s) => s.micId);
-  const error = useMediaStore((s) => s.error);
   const videoEnabled = useMediaStore((s) => s.videoEnabled);
   const audioEnabled = useMediaStore((s) => s.audioEnabled);
+  const error = useMediaStore((s) => s.error);
+  const setCamera = useMediaStore((s) => s.setCamera);
+  const setMic = useMediaStore((s) => s.setMic);
+  const openStream = useMediaStore((s) => s.openStream);
+  // const powerOff = useMediaStore((s) => s.powerOff); // Não precisamos mais do powerOff aqui
 
-  // --- estado de prontidão (precisa ter as DUAS trilhas ativas)
-  const hasVideoTrack = !!stream?.getVideoTracks()?.length;
-  const hasAudioTrack = !!stream?.getAudioTracks()?.length;
+  // Hooks adicionados para a gravação de teste
+  const testing = useMediaStore((s) => s.testing);
+  const recordingUrl = useMediaStore((s) => s.recordingUrl);
+  const isQuickPreviewOpen = useMediaStore((s) => s.isQuickPreviewOpen);
+  const setQuickPreviewOpen = useMediaStore((s) => s.setQuickPreviewOpen);
+  const startQuickRecord = useMediaStore((s) => s.startQuickRecord);
+  // Fim dos hooks adicionados
 
-  const readyVideo = !!cameraId && videoEnabled && hasVideoTrack;
-  const readyAudio = !!micId && audioEnabled && hasAudioTrack;
+  const { data: devicesData } = useMediaDevicesQuery();
 
+  // --- CORREÇÃO PRINCIPAL ---
+  // Este useEffect agora APENAS abre ou atualiza o stream.
+  // A função de limpeza que chamava powerOff() foi REMOVIDA.
+  useEffect(() => {
+    const shouldHaveVideo = !!cameraId;
+    const shouldHaveAudio = !!micId;
+
+    useMediaStore.setState({ videoEnabled: shouldHaveVideo, audioEnabled: shouldHaveAudio });
+
+    openStream(cameraId, micId);
+
+    // A função de limpeza foi removida daqui.
+    // O stream será desligado pelo powerOff() no logout ou no final do teste.
+    
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraId, micId, openStream]);
+
+
+  // Determina se está pronto para continuar
+  const hasVideoTrack = useMemo(() => stream?.getVideoTracks().some(t => t.readyState === 'live') ?? false, [stream]);
+  const hasAudioTrack = useMemo(() => stream?.getAudioTracks().some(t => t.readyState === 'live') ?? false, [stream]);
+
+  const readyVideo = videoEnabled && hasVideoTrack;
+  const readyAudio = audioEnabled && hasAudioTrack;
   const canContinue = !!stream && readyVideo && readyAudio && !error;
 
+  // Adicionada condição para o botão de teste
+  const canTest = canContinue && !testing;
+
   const streamForMeter = useMemo(() => {
-    if (!audioEnabled || !stream) return null;
-    const hasAudio = stream.getAudioTracks().length > 0;
-    return hasAudio ? stream : null;
-  }, [audioEnabled, stream]);
+    if (!audioEnabled || !stream || !hasAudioTrack) return null;
+    return stream;
+  }, [audioEnabled, stream, hasAudioTrack]);
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-        <p className="text-sm text-gray-500">{subtitle}</p>
-      </div>
+    <> {/* Adicionado Fragment para o Dialog */}
+      <div className="mx-auto w-full max-w-4xl px-4 py-8 flex flex-col items-center">
+        {/* Título e Subtítulo */}
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+          <p className="text-sm text-gray-500">{subtitle}</p>
+        </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Pré-visualização</CardTitle>
-              <CardDescription>Verifique enquadramento e iluminação</CardDescription>
-            </div>
-            <MediaToggles />
-          </CardHeader>
-          <CardContent>
-            <VideoPreview stream={stream} mirror={mirror} videoEnabled={videoEnabled} />
-            <div className="mt-4 flex items-center gap-3">
-              <Switch id="mirror" checked={mirror} onCheckedChange={setMirror} />
-              <Label htmlFor="mirror">Espelhar vídeo</Label>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Dispositivos</CardTitle>
-            <CardDescription>Selecione a câmera e o microfone</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DeviceSelect />
-
-            <div className="space-y-2">
-              <Label>Nível de áudio</Label>
-              <div className="rounded-md border p-3">
-                <AudioMeter stream={streamForMeter} />
-                <p className="mt-1 text-xs text-gray-500">Fale algo — a barra deve se mover.</p>
-              </div>
-            </div>
-
-            {enableQuickRecord && (
-              // a gravação-teste só habilita quando os dois estão prontos
-              <QuickRecord seconds={quickRecordSeconds} />
-            )}
-
-            {error && (
-              <Alert variant="destructive">
-                <AlertTitle>Problema ao acessar câmera/microfone</AlertTitle>
+        {/* Container do Vídeo */}
+        <div className="relative w-full max-w-2xl aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-300 shadow-sm mb-4">
+          <VideoPreview stream={stream} mirror={mirror} videoEnabled={videoEnabled} />
+          {/* Exibição de erro sobre o vídeo */}
+          {error && (
+            <div className="absolute bottom-2 left-2 right-2 z-10">
+              <Alert variant="destructive" className="bg-red-50/90 backdrop-blur-sm">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Erro</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
-            )}
-
-            {/* checklist de prontidão */}
-            {!canContinue && (
-              <Alert className="mt-1">
-                <AlertCircle className="mr-2 h-4 w-4" />
-                <AlertTitle>Para continuar, ative os dois</AlertTitle>
-                <AlertDescription className="space-y-1">
-                  <div className={readyVideo ? "text-green-700" : "text-gray-700"}>
-                    • Câmera {readyVideo ? "ok" : "não habilitada/sem vídeo"}
-                  </div>
-                  <div className={readyAudio ? "text-green-700" : "text-gray-700"}>
-                    • Microfone {readyAudio ? "ok" : "não habilitado/sem áudio"}
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="pt-2">
-              <Button
-                className="w-full"
-                disabled={!canContinue}
-                onClick={() => stream && canContinue && onContinue({ stream, cameraId, micId })}
-              >
-                {ctaLabel}
-              </Button>
-              {!canContinue && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Dica: selecione os dispositivos e ative <b>câmera</b> e <b>microfone</b>.
-                </p>
-              )}
             </div>
+          )}
+        </div>
 
-            <Alert className="mt-2">
-              <Info className="mr-2 h-4 w-4" />
-              <AlertTitle>Dicas rápidas</AlertTitle>
-              <AlertDescription>
-                Feche outros apps que usam a câmera (Meet/Zoom/Teams) e atualize a página. No iOS use Safari; no Android, Chrome.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+        {/* Barra de Controles */}
+        <div className="w-full max-w-2xl flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          {/* Lado Esquerdo: Audio Meter */}
+          <div className="w-full sm:w-auto flex-grow sm:flex-grow-0 sm:min-w-[150px]">
+            <AudioMeter stream={streamForMeter} />
+          </div>
+
+          {/* Lado Direito: Seletores de Dispositivo */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            {/* Seletor de Câmera */}
+            <Select value={cameraId || ""} onValueChange={setCamera}>
+              <SelectTrigger className="w-full sm:w-[200px] bg-white">
+                <Video className="h-4 w-4 mr-2 flex-shrink-0" />
+                <SelectValue placeholder="Selecionar câmera..." />
+              </SelectTrigger>
+              <SelectContent>
+                {devicesData?.cameras && devicesData.cameras.length > 0 ? (
+                  devicesData.cameras.map((cam) => (
+                    <SelectItem key={cam.deviceId} value={cam.deviceId}>
+                      {cam.label || `Câmera ${cam.deviceId.substring(0, 6)}`}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-sm text-gray-500">Nenhuma câmera encontrada</div>
+                )}
+              </SelectContent>
+            </Select>
+
+            {/* Seletor de Microfone */}
+            <Select value={micId || ""} onValueChange={setMic}>
+              <SelectTrigger className="w-full sm:w-[200px] bg-white">
+                <Mic className="h-4 w-4 mr-2 flex-shrink-0" />
+                <SelectValue placeholder="Selecionar microfone..." />
+              </SelectTrigger>
+              <SelectContent>
+                {devicesData?.mics && devicesData.mics.length > 0 ? (
+                  devicesData.mics.map((mic) => (
+                    <SelectItem key={mic.deviceId} value={mic.deviceId}>
+                      {mic.label || `Microfone ${mic.deviceId.substring(0, 6)}`}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-sm text-gray-500">Nenhum microfone encontrado</div>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Botão Principal e Dicas */}
+        <div className="mt-8 w-full max-w-2xl flex flex-col items-center">
+            {/* Checklist de prontidão (simplificado) */}
+            {!canContinue && !error && (
+              <div className="mb-4 text-xs text-center text-orange-600 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0"/>
+                  <span>Para continuar, selecione e permita o acesso à <strong>câmera</strong> e ao <strong>microfone</strong>.</span>
+              </div>
+            )}
+
+          {/* Wrapper para os botões */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
+            {/* BOTÃO DE TESTE ADICIONADO */}
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto sm:px-8 rounded-lg" // Estilo de contorno
+              onClick={() => startQuickRecord(5)} // Grava por 5 segundos
+              disabled={!canTest} // Desabilitado se não puder ou se já estiver testando
+            >
+              <PlayCircle className="mr-2 h-4 w-4" />
+              {testing ? "Gravando..." : "Gravar Teste (5s)"}
+            </Button>
+
+            {/* Botão Continuar */}
+            <Button
+              size="lg"
+              className="w-full sm:w-auto sm:px-10 rounded-lg"
+              disabled={!canContinue}
+              onClick={() => stream && canContinue && onContinue({ stream, cameraId, micId })}
+            >
+              {ctaLabel}
+            </Button>
+          </div>
+
+
+          {/* Dicas rápidas */}
+          <Alert className="mt-6 w-full text-left bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-700" />
+            <AlertTitle className="text-blue-800">Dicas rápidas</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              Feche outros aplicativos que usam a câmera (Meet, Zoom, Teams). Se não funcionar,
+              atualize a página. Use Safari no iOS ou Chrome no Android/Desktop.
+            </AlertDescription>
+          </Alert>
+        </div>
       </div>
-    </div>
+
+      {/* DIALOG PARA PREVIEW DO TESTE (ADICIONADO) */}
+      <Dialog open={!!recordingUrl && isQuickPreviewOpen} onOpenChange={setQuickPreviewOpen}>
+        <DialogContent className="sm:max-w-[720px] rounded-2xl p-0 overflow-hidden">
+          <DialogHeader />
+          {recordingUrl && <video src={recordingUrl} controls autoPlay className="w-full h-full" />}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

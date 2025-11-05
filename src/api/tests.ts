@@ -1,12 +1,12 @@
+import type { QuestionSnapshotDto } from "@/@types/tests";
 import apiClient from "./apiClient";
 import { API_PATHS } from "./apiPaths";
-import type { PortugueseQuestion } from "@/@types/tests";
 
 /**
  * Busca as questões para o teste de português.
  */
-export async function fetchPortugueseTest(): Promise<PortugueseQuestion[]> {
-  const { data } = await apiClient.get<PortugueseQuestion[]>(
+export async function fetchPortugueseTest(): Promise<QuestionSnapshotDto[]> {
+  const { data } = await apiClient.get<QuestionSnapshotDto[]>(
     API_PATHS.TESTS.PORTUGUESE
   );
   return data;

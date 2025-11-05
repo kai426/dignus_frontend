@@ -13,13 +13,14 @@ import type { QuestionSnapshotDto, UploadVideoRequestPayload } from "@/@types/te
 import { toast } from "sonner"; // Para notificações
 
 const PREP_SECONDS = 5; // Tempo de preparação antes de gravar
-const QUESTION_LIMIT_SECONDS = 60 * 2; // Exemplo: 2 minutos por pergunta
 
 type Props = {
   testId: string; // ID da instância do teste (V2)
   candidateId: string; // ID do candidato (V2)
   questions: QuestionSnapshotDto[]; // Snapshots das perguntas de interpretação (V2)
   onFinishedAll: () => void; // Callback ao finalizar a última pergunta
+  prepTimeSeconds: number;
+  interpretationTimeSeconds: number;
 };
 
 type Phase = "prep" | "recording";
@@ -28,7 +29,9 @@ export function PortugueseInterpretationStage({
     testId,
     candidateId,
     questions = [], // Default para array vazio
-    onFinishedAll
+    onFinishedAll,
+    prepTimeSeconds,
+    interpretationTimeSeconds
 }: Props) {
   // Hook de upload V2
   const uploadMutation = useUploadVideoResponse();
@@ -36,7 +39,7 @@ export function PortugueseInterpretationStage({
   // Estados locais
   const [currentIdx, setCurrentIdx] = useState(0); // Índice da pergunta atual
   const [phase, setPhase] = useState<Phase>("prep"); // Fase: preparação ou gravação
-  const [prepLeft, setPrepLeft] = useState(PREP_SECONDS); // Segundos restantes de preparação
+  const [prepLeft, setPrepLeft] = useState(prepTimeSeconds); // Segundos restantes de preparação
   const [openStop, setOpenStop] = useState(false); // Controle do modal de confirmação
 
   // Verifica se é a última pergunta
@@ -44,7 +47,7 @@ export function PortugueseInterpretationStage({
 
   // Hook de gravação, limitado pelo tempo da questão
   const { start, stop, elapsed, videoBlob, error, setSourceStream } =
-    useRecorder(QUESTION_LIMIT_SECONDS);
+    useRecorder(interpretationTimeSeconds);
 
   // Estados do MediaStore
   const mirror = useMediaStore((s) => s.mirror);
@@ -96,7 +99,7 @@ export function PortugueseInterpretationStage({
             if (!videoEnabled || !audioEnabled) {
               toast.error("Câmera e/ou microfone não estão ativos.");
               // Opcional: Voltar para a fase de 'prep' ou mostrar erro?
-              setPrepLeft(PREP_SECONDS); // Reinicia prep?
+              setPrepLeft(prepTimeSeconds); // Reinicia prep?
               recordingStartedRef.current = false; // Permite tentar de novo
               return;
             }
@@ -150,7 +153,7 @@ export function PortugueseInterpretationStage({
         if (!isLast) {
           // Vai para a próxima pergunta
           setCurrentIdx((i) => i + 1);
-          setPrepLeft(PREP_SECONDS); // Reseta tempo de preparação
+          setPrepLeft(prepTimeSeconds); // Reseta tempo de preparação
           setPhase("prep"); // Volta para fase de preparação
           recordingStartedRef.current = false; // Permite iniciar a gravação da próxima
         } else {
@@ -161,7 +164,7 @@ export function PortugueseInterpretationStage({
       // onError já é tratado no hook useUploadVideoResponse
     });
 
-  }, [videoBlob, testId, candidateId, questions, currentIdx, isLast, onFinishedAll, uploadMutation]);
+  }, [videoBlob, testId, candidateId, questions, currentIdx, isLast, onFinishedAll, uploadMutation, prepTimeSeconds]);
 
   // Renderização da Webcam (memoizado)
   const webcam = useMemo(() => {
@@ -250,7 +253,7 @@ export function PortugueseInterpretationStage({
 
       {/* Barra de Progresso da Gravação */}
       {phase === "recording" && (
-        <TimerProgress elapsed={elapsed} limitSeconds={QUESTION_LIMIT_SECONDS} className="mt-4" />
+        <TimerProgress elapsed={elapsed} limitSeconds={interpretationTimeSeconds} className="mt-4" />
       )}
 
       {/* Botão de Ação (Avançar/Finalizar) */}
