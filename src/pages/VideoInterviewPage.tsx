@@ -13,6 +13,8 @@ import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
 import { ConfirmStopDialog } from "@/components/media/ConfirmStopDialog";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
+import { getStoredCandidate } from "@/api/auth";
 
 const TOTAL_LIMIT_SECONDS = 10 * 60;
 const QUESTION_LIMIT_SECONDS = 2 * 60;
@@ -23,7 +25,7 @@ type Phase = "idle" | "prep" | "recording";
 
 export default function VideoInterviewPage() {
   // grava por pergunta (2 min)
-  const { start, stop, elapsed, videoUrl, error, setSourceStream } =
+  const { start, stop, elapsed, videoBlob, error, setSourceStream } =
     useRecorder(QUESTION_LIMIT_SECONDS);
 
   // índice e fases
@@ -43,10 +45,55 @@ export default function VideoInterviewPage() {
   const micId = useMediaStore((s) => s.micId);
   const videoEnabled = useMediaStore((s) => s.videoEnabled);
   const audioEnabled = useMediaStore((s) => s.audioEnabled);
+  const enableVideo = useMediaStore((state) => state.enableVideo);
+  const enableAudio = useMediaStore((state) => state.enableAudio);
   const openStream = useMediaStore((s) => s.openStream);
   const makeRecordableStream = useMediaStore((s) => s.makeRecordableStream);
   const navigate = useNavigate();
   const powerOff = useMediaStore((s) => s.powerOff);
+  const setCamera = useMediaStore((s) => s.setCamera);
+  const setMic = useMediaStore((s) => s.setMic);
+
+
+  const { data, refetch } = useMediaDevicesQuery();
+  const candidate = getStoredCandidate();
+  const candidateId = candidate?.id;
+
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
+
+  useEffect(() => {
+    async function requestPermission() {
+      try {
+        setCheckingPermission(true);
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        await refetch();
+        setPermissionDenied(false);
+      } catch (err) {
+        console.error("Permissão negada ou erro:", err);
+        setPermissionDenied(true);
+      } finally {
+        setCheckingPermission(false);
+      }
+    }
+    requestPermission();
+  }, [refetch]);
+
+  useEffect(() => {
+    async function enableDevices() {
+      if (data) {
+        if (!cameraId && data.cameras?.length) {
+          await setCamera(data.cameras[0].deviceId);
+        }
+        if (!micId && data.mics?.length) {
+          await setMic(data.mics[0].deviceId);
+        }
+        if (!videoEnabled) await enableVideo();
+        if (!audioEnabled) await enableAudio();
+      }
+    }
+    enableDevices();
+  }, [data, cameraId, micId, setCamera, setMic, enableVideo, enableAudio, videoEnabled, audioEnabled]);
 
   function onBack() {
     window.history.back();
@@ -54,8 +101,17 @@ export default function VideoInterviewPage() {
 
   // Inicia entrevista: abre stream, exibe prep de 5s da 1ª pergunta
   async function handleStartInterview() {
-    setCurrentIdx(0);
+    if (checkingPermission) {
+      toast.error("Ative câmera e microfone na prévia antes de iniciar.");
+      return;
+    }
+    if (permissionDenied) {
+      toast.error("Permissão para câmera e microfone negada.");
+      return;
+    }
+
     await openStream(cameraId, micId);
+    setCurrentIdx(0);
     setPrepLeft(PREP_SECONDS);
     setPhase("prep");
   }
@@ -94,13 +150,18 @@ export default function VideoInterviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, prepLeft]);
 
+  if (!candidateId) {
+    toast.error("ID do candidato não encontrado. Por favor, faça login novamente.");
+    return;
+  }
+
   // Quando a gravação de UMA pergunta termina, salva e avança (ou finaliza)
   useEffect(() => {
-    if (!videoUrl) return;
+    if (!videoBlob) return;
     const qNumber = currentIdx + 1;
 
-    // TODO: enviar para o backend aqui (videoUrl → blob fetch/POST). Exemplo:
-    // await uploadAnswer({ questionIndex: currentIdx, url: videoUrl });
+    // TODO: enviar para o backend aqui (videoBlob → blob fetch/POST). Exemplo:
+    // await uploadAnswer({ questionIndex: currentIdx, url: videoBlob });
 
     toast.success(`Questão ${qNumber} gravada com sucesso.`);
 
@@ -112,10 +173,13 @@ export default function VideoInterviewPage() {
     } else {
       // última questão finalizada — volta para estado ocioso (ou redirecione)
       powerOff();
-      navigate({ to: "/selection-process" });
+      navigate({
+        to: "/selection-process/$candidateId",
+        params: { candidateId },
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoUrl]);
+  }, [videoBlob]);
 
 
   // Avançar manualmente antes de 2min → confirmar parada
@@ -211,12 +275,18 @@ export default function VideoInterviewPage() {
           {/* Webcam + overlay */}
           <div className="relative overflow-hidden rounded-lg border border-gray-300 bg-white">
             {phase === "idle" ? (
-              <div className="aspect-video w-full bg-[url('/checker.svg')] bg-center" />
+              <div className="aspect-video w-full bg-gray-100 flex items-center justify-center text-gray-400">
+                Preview da câmera aparecerá aqui
+              </div>
             ) : phase === "recording" ? (
               webcam
             ) : (
-              <div className="aspect-video w-full bg-[url('/checker.svg')] bg-center" />
+              <div className="aspect-video w-full bg-gray-100 flex items-center justify-center text-gray-400">
+                Preview da câmera aparecerá aqui
+              </div>
             )}
+
+            {/* Overlay de preparação, se houver */}
             {prepOverlay}
           </div>
 

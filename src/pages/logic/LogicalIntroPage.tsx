@@ -2,13 +2,20 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 
-type Props = {
-  onBack?: () => void;
-  onStart?: () => void;
-};
+// type Props = {
+//   onBack?: () => void;
+//   onStart?: () => void;
+// };
 
-export default function LogicalIntroPage({ onBack, onStart }: Props) {
+
+export default function LogicalIntroPage() {
   const navigate = useNavigate();
+  
+  const handleBack = () => {
+    // Volta para a página anterior
+    window.history.back();
+  };
+  
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
@@ -16,7 +23,7 @@ export default function LogicalIntroPage({ onBack, onStart }: Props) {
       <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b md:border-gray-200">
         <div className="relative flex h-full items-center px-4 md:px-6">
           <button
-            onClick={() => navigate({ to: "/selection-process" })}
+            onClick={handleBack}
             className="inline-flex items-center gap-2 text-white md:text-gray-600 md:hover:text-gray-800"
           >
             <ChevronLeft className="size-5" />

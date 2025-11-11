@@ -85,6 +85,10 @@ export const API_PATHS = {
         UPDATE_ANSWER: (testId: string, responseId: string, candidateId: string) => `/api/v2/tests/${testId}/answers/${responseId}?candidateId=${candidateId}`, // PUT { questionSnapshotId, selectedAnswers, responseTimeMs? }
         DELETE_ANSWER: (testId: string, responseId: string, candidateId: string) => `/api/v2/tests/${testId}/answers/${responseId}?candidateId=${candidateId}`, // DELETE
     },
+    QUESTIONNAIRE: {
+        // Rota baseada no QuestionnaireController.cs
+        SUBMIT_PSYCHOLOGY_RESPONSES: "/api/questionnaire/submit-psychology", // POST { candidateId, testId, fixedResponses }
+    },
     TESTS: {
     PORTUGUESE: "/tests/portuguese", // Endpoint para buscar as questões
     SUBMIT_PORTUGUESE: "/candidate/portuguese", // Endpoint para enviar o áudio

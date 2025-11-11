@@ -13,11 +13,6 @@ import { Button } from "@/components/ui/button";
 
 type Stage = "reading" | "qa";
 
-// VALORES PADRÃO (baseados no backend)
-const DEFAULT_READING_TIME = 60;        // 1 minuto
-const DEFAULT_PREP_TIME = 5;            // 5 segundos
-const DEFAULT_INTERPRETATION_TIME = 120; // 2 minutos
-
 export default function PortugueseTestRunPage({ onBack }: { onBack?: () => void }) {
   const [stage, setStage] = useState<Stage>("reading");
   const powerOff = useMediaStore((s) => s.powerOff);
@@ -29,8 +24,8 @@ export default function PortugueseTestRunPage({ onBack }: { onBack?: () => void 
   // --- ALTERAÇÃO PRINCIPAL ---
   // Busca ou cria o teste de Português para este candidato
   const { data: testInstance, isLoading, isError, error } = useGetOrCreateTestQuery(
-    candidateId,
-    TestType.Portuguese // Usa o Enum para clareza
+      candidateId,
+      TestType.Portuguese // Usa o Enum para clareza
   );
 
   function handleReadingFinished() {
@@ -50,12 +45,6 @@ export default function PortugueseTestRunPage({ onBack }: { onBack?: () => void 
   // As perguntas de interpretação são todas do array 'questions'
   const interpretationQuestions: QuestionSnapshotDto[] = testInstance?.questions ?? [];
 
-  // Busca os tempos dinâmicos, ou usa os padrões corretos
-  const settings = testInstance?.testSettings;
-  const readingTime = settings?.portugueseReadingTimeSeconds ?? DEFAULT_READING_TIME;
-  const prepTime = settings?.portuguesePreparationTimeSeconds ?? DEFAULT_PREP_TIME;
-  const interpretationTime = settings?.portugueseInterpretationTimeSeconds ?? DEFAULT_INTERPRETATION_TIME;
-
   // --- Gerenciamento de Loading/Erro ---
   if (isLoading) {
     return (
@@ -69,9 +58,9 @@ export default function PortugueseTestRunPage({ onBack }: { onBack?: () => void 
   if (isError || !testInstance) {
     return (
       <div className="flex h-screen flex-col items-center justify-center text-center text-red-600 p-4">
-        <h2 className="text-xl font-bold mb-2">Erro ao carregar o teste</h2>
-        <p className="mb-4">{error?.response?.data?.message || error?.message || "Não foi possível buscar ou criar o teste."}</p>
-        <Button onClick={onBack} variant="outline">Voltar</Button>
+         <h2 className="text-xl font-bold mb-2">Erro ao carregar o teste</h2>
+         <p className="mb-4">{error?.response?.data?.message || error?.message || "Não foi possível buscar ou criar o teste."}</p>
+         <Button onClick={onBack} variant="outline">Voltar</Button>
       </div>
     );
   }
@@ -81,30 +70,25 @@ export default function PortugueseTestRunPage({ onBack }: { onBack?: () => void 
     <div className="min-h-screen bg-[#F9FAFB]">
       <Topbar
         onBack={onBack}
-        hideBack={stage !== "reading"}
+        hideBack={stage !== "reading"} // Esconde botão voltar na etapa de interpretação
         title="Teste de Português"
       />
 
       <main className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 py-8">
         {stage === "reading" ? (
           <PortugueseReadingStage
-            testId={testInstance.id}
-            candidateId={candidateId}
-            readingTextId={testInstance.portugueseReadingTextId}
-            textToRead={readingTextContent}
+            testId={testInstance.id} // Passa o ID do teste
+            candidateId={candidateId} // Passa o ID do candidato
+            readingTextId={testInstance.portugueseReadingTextId} // Passa o ID do texto
+            textToRead={readingTextContent} // Passa o conteúdo do texto
             onFinished={handleReadingFinished}
-            // Passa o tempo dinâmico como prop
-            readingTimeSeconds={readingTime}
           />
         ) : (
           <PortugueseInterpretationStage
-            testId={testInstance.id}
-            candidateId={candidateId}
-            questions={interpretationQuestions}
+            testId={testInstance.id} // Passa o ID do teste
+            candidateId={candidateId} // Passa o ID do candidato
+            questions={interpretationQuestions} // Passa os snapshots das questões
             onFinishedAll={handleAllFinished}
-            // Passa os tempos dinâmicos como props
-            prepTimeSeconds={prepTime}
-            interpretationTimeSeconds={interpretationTime}
           />
         )}
       </main>

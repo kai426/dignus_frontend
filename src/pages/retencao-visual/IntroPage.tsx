@@ -5,12 +5,16 @@ import { useNavigate } from "@tanstack/react-router";
 export default function IntroPage() {
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    window.history.back();
+  };
+
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
           <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b-2 md:border-gray-200">
             <div className="relative flex h-full items-center px-4 md:px-6">
               <button
-                onClick={() => navigate({ to: "/selection-process" })}
+                onClick={handleBack}
                 className="inline-flex items-center gap-2 text-white md:text-gray-600 md:hover:text-gray-800"
               >
                 <ChevronLeft className="size-5" />

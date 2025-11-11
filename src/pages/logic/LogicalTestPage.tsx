@@ -4,65 +4,105 @@ import { ChevronLeft, ChevronRight, Square } from "lucide-react";
 import Webcam from "react-webcam";
 import { TimerProgress } from "@/components/TimerProgress";
 import { useRecorder } from "@/hooks/useRecorder";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-
-// mídia & modais
+import { useNavigate } from "@tanstack/react-router";
 import { useMediaStore } from "@/store/useMediaStore";
 import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
 import { ConfirmStopDialog } from "@/components/media/ConfirmStopDialog";
+import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
+import { getStoredCandidate } from "@/api/auth";
 
-/** 2 perguntas simples de raciocínio (sinta-se à vontade para editar o texto) */
 const QUESTIONS = [
   "Explique como identificaria o próximo número da sequência: 2, 6, 12, 20, ...",
   "Uma máquina produz 6 peças a cada 4 minutos. Quantas peças produzirá em 1 hora? Justifique.",
 ];
-
 const PREP_SECONDS = 5;
-const PER_QUESTION_SECONDS = 90; // 1:30 por pergunta
+const PER_QUESTION_SECONDS = 90;
 const TOTAL_MINUTES = Math.ceil((QUESTIONS.length * PER_QUESTION_SECONDS) / 60);
 
 type Phase = "idle" | "prep" | "recording";
 
 export default function LogicalTestPage() {
-  const navigate = useNavigate();
-
-  // grava por pergunta
-  const { start, stop, elapsed, videoUrl, error, setSourceStream } =
+  const { start, stop, elapsed, videoBlob, error, setSourceStream } =
     useRecorder(PER_QUESTION_SECONDS);
 
-  // estado de navegação/fase
   const [currentIdx, setCurrentIdx] = useState(0);
   const total = QUESTIONS.length;
   const isLast = currentIdx === total - 1;
-
   const [phase, setPhase] = useState<Phase>("idle");
   const [prepLeft, setPrepLeft] = useState(PREP_SECONDS);
 
-  // modais
   const [openStart, setOpenStart] = useState(false);
   const [openStop, setOpenStop] = useState(false);
 
-  // mídia do store
   const mirror = useMediaStore((s) => s.mirror);
   const cameraId = useMediaStore((s) => s.cameraId);
   const micId = useMediaStore((s) => s.micId);
+  const enableVideo = useMediaStore((state) => state.enableVideo);
+  const enableAudio = useMediaStore((state) => state.enableAudio);
   const videoEnabled = useMediaStore((s) => s.videoEnabled);
   const audioEnabled = useMediaStore((s) => s.audioEnabled);
-  const openStream = useMediaStore((s) => s.openStream);
+  const openStream = useMediaStore((state) => state.openStream);
   const makeRecordableStream = useMediaStore((s) => s.makeRecordableStream);
   const powerOff = useMediaStore((s) => s.powerOff);
+  const setCamera = useMediaStore((s) => s.setCamera);
+  const setMic = useMediaStore((s) => s.setMic);
+
+  const navigate = useNavigate();
+  const { data, refetch } = useMediaDevicesQuery();
+  const candidate = getStoredCandidate();
+  const candidateId = candidate?.id;
+
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
+
+  useEffect(() => {
+    async function requestPermission() {
+      try {
+        setCheckingPermission(true);
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        await refetch();
+        setPermissionDenied(false);
+      } catch (err) {
+        console.error("Permissão negada ou erro:", err);
+        setPermissionDenied(true);
+      } finally {
+        setCheckingPermission(false);
+      }
+    }
+    requestPermission();
+  }, [refetch]);
+
+  useEffect(() => {
+    async function enableDevices() {
+      if (data) {
+        if (!cameraId && data.cameras?.length) {
+          await setCamera(data.cameras[0].deviceId);
+        }
+        if (!micId && data.mics?.length) {
+          await setMic(data.mics[0].deviceId);
+        }
+        if (!videoEnabled) await enableVideo();
+        if (!audioEnabled) await enableAudio();
+      }
+    }
+    enableDevices();
+  }, [data, cameraId, micId, setCamera, setMic, enableVideo, enableAudio, videoEnabled, audioEnabled]);
 
   function onBack() {
     window.history.back();
   }
 
   async function handleStart() {
-    if (!videoEnabled || !audioEnabled) {
+    if (checkingPermission) {
       toast.error("Ative câmera e microfone na prévia antes de iniciar.");
       return;
     }
-    // não inicia gravação ainda — começa com prep de 5s na primeira pergunta
+    if (permissionDenied) {
+      toast.error("Permissão para câmera e microfone negada.");
+      return;
+    }
+
     await openStream(cameraId, micId);
     setCurrentIdx(0);
     setPrepLeft(PREP_SECONDS);
@@ -74,7 +114,6 @@ export default function LogicalTestPage() {
   useEffect(() => {
     if (phase !== "prep") return;
     startedRef.current = false;
-
     const id = window.setInterval(() => {
       setPrepLeft((v) => {
         if (v <= 1) {
@@ -84,7 +123,6 @@ export default function LogicalTestPage() {
         return v - 1;
       });
     }, 1000);
-
     return () => clearInterval(id);
   }, [phase]);
 
@@ -101,22 +139,32 @@ export default function LogicalTestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, prepLeft]);
 
+  if (!candidateId) {
+    toast.error("ID do candidato não encontrado. Por favor, faça login novamente.");
+    return;
+  }
+
   // quando uma pergunta termina (por stop ou por tempo), salvar e avançar
   useEffect(() => {
-    if (!videoUrl) return;
-    toast.success(`Questão ${currentIdx + 1} gravada com sucesso.`);
+    if (!videoBlob) return;
 
-    if (!isLast) {
-      setCurrentIdx((i) => i + 1);
-      setPrepLeft(PREP_SECONDS);
-      setPhase("prep");
-    } else {
-      // fim da etapa
-      powerOff();
-      navigate({ to: "/selection-process" });
+    async function handleVideoBlob() {
+      toast.success(`Questão ${currentIdx + 1} gravada com sucesso.`);
+      if (!isLast) {
+        setCurrentIdx((i) => i + 1);
+        setPrepLeft(PREP_SECONDS);
+        setPhase("prep");
+      } else {
+        powerOff();
+        navigate({
+          to: "/selection-process/$candidateId",
+          params: { candidateId: candidateId ?? "default-id" },
+        });
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoUrl]);
+
+    handleVideoBlob();
+  }, [videoBlob]);
 
   // webcam (só durante gravação; evita pedir permissão antes)
   const webcam = useMemo(() => {
@@ -127,8 +175,14 @@ export default function LogicalTestPage() {
           videoEnabled && cameraId
             ? {
               deviceId: { exact: cameraId },
-              width: window.innerWidth >= 1024 && window.innerWidth <= 1440 ? 720 : 800,
-              height: window.innerWidth >= 1024 && window.innerWidth <= 1440 ? 405 : 540,
+              width:
+                window.innerWidth >= 1024 && window.innerWidth <= 1440
+                  ? 720
+                  : 800,
+              height:
+                window.innerWidth >= 1024 && window.innerWidth <= 1440
+                  ? 405
+                  : 540,
             }
             : { width: 960, height: 540 }
         }
@@ -168,7 +222,6 @@ export default function LogicalTestPage() {
           </h1>
         </div>
       </header>
-
       <main className="mx-auto w-full 2xl:max-w-[1100px] lg:max-w-[1000px] px-6 py-8">
         {/* Tabs + enunciado — aparecem em prep e recording */}
         {phase !== "idle" && (
@@ -193,13 +246,11 @@ export default function LogicalTestPage() {
                 );
               })}
             </div>
-
             <p className="mb-4 text-center text-lg font-semibold text-gray-700">
               {QUESTIONS[currentIdx]}
             </p>
           </>
         )}
-
         {/* Webcam + overlay */}
         <div className="relative overflow-hidden rounded-lg border border-gray-300 bg-white">
           {phase === "recording" ? (
@@ -209,7 +260,6 @@ export default function LogicalTestPage() {
           )}
           {prepOverlay}
         </div>
-
         {/* Progresso — só durante gravação */}
         {phase === "recording" && (
           <TimerProgress
@@ -218,7 +268,6 @@ export default function LogicalTestPage() {
             className="mt-4"
           />
         )}
-
         {/* Botões */}
         <div className="mt-6 flex items-center justify-center">
           {phase === "recording" ? (
@@ -245,6 +294,7 @@ export default function LogicalTestPage() {
           ) : phase === "idle" ? (
             <Button
               onClick={() => setOpenStart(true)}
+              disabled={checkingPermission || permissionDenied}
               className="rounded-lg bg-[#0385d1] text-white hover:bg-[#0271b2]"
             >
               Iniciar gravação
@@ -255,7 +305,6 @@ export default function LogicalTestPage() {
             </Button>
           )}
         </div>
-
         {/* Modais */}
         <ConfirmStartDialog
           open={openStart}
@@ -273,7 +322,6 @@ export default function LogicalTestPage() {
               : "Avançar agora encerrará e enviará a resposta desta pergunta. Deseja continuar?"
           }
         />
-
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </main>
     </div>

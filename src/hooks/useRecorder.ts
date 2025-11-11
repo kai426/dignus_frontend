@@ -18,65 +18,71 @@ export function useRecorder(limitSeconds: number) {
     ownsStreamRef.current = false;
   }, []);
 
-  const start = useCallback(async () => {
-    try {
-      setError(null);
-      setVideoBlob(null);
-      chunksRef.current = [];
+  const start = useCallback(
+    async (stream?: MediaStream) => {
+      try {
+        setError(null);
+        setVideoBlob(null);
+        chunksRef.current = [];
 
-      let stream = streamRef.current;
+        let usedStream = stream || streamRef.current;
 
-      // Se não foi injetado um stream, mantém o fallback antigo (getUserMedia)
-      if (!stream) {
-        const acquired = await navigator.mediaDevices.getUserMedia({
-          video: { width: 960, height: 540 },
-          audio: true,
-        });
-        streamRef.current = acquired;
-        ownsStreamRef.current = true;
-        stream = acquired;
+        // Se recebeu stream no parâmetro, atualiza o ref
+        if (stream) {
+          streamRef.current = stream;
+          ownsStreamRef.current = false;
+        }
+
+        if (!usedStream) {
+          const acquired = await navigator.mediaDevices.getUserMedia({
+            video: { width: 960, height: 540 },
+            audio: true,
+          });
+          streamRef.current = acquired;
+          ownsStreamRef.current = true;
+          usedStream = acquired;
+        }
+
+        if (!usedStream) {
+          setError("Sem fonte de mídia para gravar.");
+          return;
+        }
+
+        const mime =
+          MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+            ? "video/webm;codecs=vp9,opus"
+            : MediaRecorder.isTypeSupported("video/webm")
+              ? "video/webm"
+              : "";
+
+        const mr = new MediaRecorder(usedStream, mime ? { mimeType: mime } : undefined);
+        mediaRecRef.current = mr;
+
+        mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+        mr.onstop = () => {
+          const type = mime || "video/webm";
+          const blob = new Blob(chunksRef.current, { type });
+          setVideoBlob(blob);
+          setRecording(false);
+          try {
+            streamRef.current?.getTracks().forEach((t) => t.stop());
+            (streamRef.current as any)?.__stopMirroring?.();
+          } catch { }
+          streamRef.current = null;
+          ownsStreamRef.current = false;
+        };
+
+        mr.start(1000);
+        setRecording(true);
+        setElapsed(0);
+      } catch {
+        setError(
+          "Não foi possível iniciar a gravação. Verifique as permissões de câmera e microfone."
+        );
       }
-
-      if (!stream) {
-        setError("Sem fonte de mídia para gravar.");
-        return;
-      }
-
-      const mime =
-        MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-          ? "video/webm;codecs=vp9,opus"
-          : MediaRecorder.isTypeSupported("video/webm")
-          ? "video/webm"
-          : "";
-
-      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      mediaRecRef.current = mr;
-
-      mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      mr.onstop = () => {
-        const type = mime || "video/webm";
-        const blob = new Blob(chunksRef.current, { type });
-        setVideoBlob(blob);
-        setRecording(false);
-
-        // Para as tracks do stream gravado
-        try {
-          streamRef.current?.getTracks().forEach((t) => t.stop());
-          (streamRef.current as any)?.__stopMirroring?.(); // encerra loop do canvas, se existir
-        } catch {}
-        streamRef.current = null;
-        ownsStreamRef.current = false;
-      };
-
-      mr.start(1000);
-      setRecording(true);
-      setElapsed(0);
-    } catch {
-      setError(
-        "Não foi possível iniciar a gravação. Verifique as permissões de câmera e microfone."
-      );
-    }
-  }, []);
+    },
+    []
+  );
 
   const stop = useCallback(() => {
     mediaRecRef.current?.stop();

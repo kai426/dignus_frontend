@@ -201,17 +201,17 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     setTimeout(() => rec.stop(), seconds * 1000);
   },
 
-  stopQuickRecord: () => {},
+  stopQuickRecord: () => { },
   setQuickPreviewOpen: (v) => set({ isQuickPreviewOpen: v }),
   clearError: () => set({ error: null }),
 
-   powerOff: () => {
+  powerOff: async () => {
     const s = get().stream;
-    try {
-      s?.getTracks().forEach((t) => t.stop());
-    } finally {
-      // zera tudo sem pedir mídia novamente
-      set({ stream: null, videoEnabled: false, audioEnabled: false });
+    if (s) {
+      s.getTracks().forEach((t) => {
+        t.stop();
+      });
     }
-  },
+    set({ stream: null, videoEnabled: false, audioEnabled: false });
+  }
 }));

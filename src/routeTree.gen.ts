@@ -9,16 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as QuestionnaireRouteImport } from './routes/questionnaire'
 import { Route as MainRouteImport } from './routes/main'
 import { Route as InterviewRouteImport } from './routes/interview'
+import { Route as ConsentRouteImport } from './routes/consent'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RetencaoVisualIndexRouteImport } from './routes/retencao-visual/index'
 import { Route as PortuguesIndexRouteImport } from './routes/portugues/index'
 import { Route as LogicoIndexRouteImport } from './routes/logico/index'
 import { Route as EntrevistaIndexRouteImport } from './routes/entrevista/index'
 import { Route as RetencaoVisualTesteRouteImport } from './routes/retencao-visual/teste'
-import { Route as QuestionarioIntroRouteImport } from './routes/questionario.intro'
 import { Route as PortuguesPreviewRouteImport } from './routes/portugues/preview'
 import { Route as PortuguesGravarRouteImport } from './routes/portugues/gravar'
 import { Route as LogicoPreviewRouteImport } from './routes/logico/preview'
@@ -32,11 +31,6 @@ import { Route as SelectionProcessCandidateIdQuestionarioIntroRouteImport } from
 import { Route as SelectionProcessCandidateIdPortuguesPreviewRouteImport } from './routes/selection-process/$candidateId/portugues/preview'
 import { Route as SelectionProcessCandidateIdPortuguesGravarRouteImport } from './routes/selection-process/$candidateId/portugues/gravar'
 
-const QuestionnaireRoute = QuestionnaireRouteImport.update({
-  id: '/questionnaire',
-  path: '/questionnaire',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MainRoute = MainRouteImport.update({
   id: '/main',
   path: '/main',
@@ -45,6 +39,11 @@ const MainRoute = MainRouteImport.update({
 const InterviewRoute = InterviewRouteImport.update({
   id: '/interview',
   path: '/interview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsentRoute = ConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -75,11 +74,6 @@ const EntrevistaIndexRoute = EntrevistaIndexRouteImport.update({
 const RetencaoVisualTesteRoute = RetencaoVisualTesteRouteImport.update({
   id: '/retencao-visual/teste',
   path: '/retencao-visual/teste',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QuestionarioIntroRoute = QuestionarioIntroRouteImport.update({
-  id: '/questionario/intro',
-  path: '/questionario/intro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortuguesPreviewRoute = PortuguesPreviewRouteImport.update({
@@ -151,16 +145,15 @@ const SelectionProcessCandidateIdPortuguesGravarRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/interview': typeof InterviewRoute
   '/main': typeof MainRoute
-  '/questionnaire': typeof QuestionnaireRoute
   '/entrevista/gravar': typeof EntrevistaGravarRoute
   '/entrevista/preview': typeof EntrevistaPreviewRoute
   '/logico/intro': typeof LogicoIntroRoute
   '/logico/preview': typeof LogicoPreviewRoute
   '/portugues/gravar': typeof PortuguesGravarRoute
   '/portugues/preview': typeof PortuguesPreviewRoute
-  '/questionario/intro': typeof QuestionarioIntroRoute
   '/retencao-visual/teste': typeof RetencaoVisualTesteRoute
   '/entrevista': typeof EntrevistaIndexRoute
   '/logico': typeof LogicoIndexRoute
@@ -175,16 +168,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/interview': typeof InterviewRoute
   '/main': typeof MainRoute
-  '/questionnaire': typeof QuestionnaireRoute
   '/entrevista/gravar': typeof EntrevistaGravarRoute
   '/entrevista/preview': typeof EntrevistaPreviewRoute
   '/logico/intro': typeof LogicoIntroRoute
   '/logico/preview': typeof LogicoPreviewRoute
   '/portugues/gravar': typeof PortuguesGravarRoute
   '/portugues/preview': typeof PortuguesPreviewRoute
-  '/questionario/intro': typeof QuestionarioIntroRoute
   '/retencao-visual/teste': typeof RetencaoVisualTesteRoute
   '/entrevista': typeof EntrevistaIndexRoute
   '/logico': typeof LogicoIndexRoute
@@ -200,16 +192,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/consent': typeof ConsentRoute
   '/interview': typeof InterviewRoute
   '/main': typeof MainRoute
-  '/questionnaire': typeof QuestionnaireRoute
   '/entrevista/gravar': typeof EntrevistaGravarRoute
   '/entrevista/preview': typeof EntrevistaPreviewRoute
   '/logico/intro': typeof LogicoIntroRoute
   '/logico/preview': typeof LogicoPreviewRoute
   '/portugues/gravar': typeof PortuguesGravarRoute
   '/portugues/preview': typeof PortuguesPreviewRoute
-  '/questionario/intro': typeof QuestionarioIntroRoute
   '/retencao-visual/teste': typeof RetencaoVisualTesteRoute
   '/entrevista/': typeof EntrevistaIndexRoute
   '/logico/': typeof LogicoIndexRoute
@@ -226,16 +217,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/consent'
     | '/interview'
     | '/main'
-    | '/questionnaire'
     | '/entrevista/gravar'
     | '/entrevista/preview'
     | '/logico/intro'
     | '/logico/preview'
     | '/portugues/gravar'
     | '/portugues/preview'
-    | '/questionario/intro'
     | '/retencao-visual/teste'
     | '/entrevista'
     | '/logico'
@@ -250,16 +240,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/consent'
     | '/interview'
     | '/main'
-    | '/questionnaire'
     | '/entrevista/gravar'
     | '/entrevista/preview'
     | '/logico/intro'
     | '/logico/preview'
     | '/portugues/gravar'
     | '/portugues/preview'
-    | '/questionario/intro'
     | '/retencao-visual/teste'
     | '/entrevista'
     | '/logico'
@@ -274,16 +263,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/consent'
     | '/interview'
     | '/main'
-    | '/questionnaire'
     | '/entrevista/gravar'
     | '/entrevista/preview'
     | '/logico/intro'
     | '/logico/preview'
     | '/portugues/gravar'
     | '/portugues/preview'
-    | '/questionario/intro'
     | '/retencao-visual/teste'
     | '/entrevista/'
     | '/logico/'
@@ -299,16 +287,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConsentRoute: typeof ConsentRoute
   InterviewRoute: typeof InterviewRoute
   MainRoute: typeof MainRoute
-  QuestionnaireRoute: typeof QuestionnaireRoute
   EntrevistaGravarRoute: typeof EntrevistaGravarRoute
   EntrevistaPreviewRoute: typeof EntrevistaPreviewRoute
   LogicoIntroRoute: typeof LogicoIntroRoute
   LogicoPreviewRoute: typeof LogicoPreviewRoute
   PortuguesGravarRoute: typeof PortuguesGravarRoute
   PortuguesPreviewRoute: typeof PortuguesPreviewRoute
-  QuestionarioIntroRoute: typeof QuestionarioIntroRoute
   RetencaoVisualTesteRoute: typeof RetencaoVisualTesteRoute
   EntrevistaIndexRoute: typeof EntrevistaIndexRoute
   LogicoIndexRoute: typeof LogicoIndexRoute
@@ -324,13 +311,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/questionnaire': {
-      id: '/questionnaire'
-      path: '/questionnaire'
-      fullPath: '/questionnaire'
-      preLoaderRoute: typeof QuestionnaireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/main': {
       id: '/main'
       path: '/main'
@@ -343,6 +323,13 @@ declare module '@tanstack/react-router' {
       path: '/interview'
       fullPath: '/interview'
       preLoaderRoute: typeof InterviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/consent': {
+      id: '/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof ConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -385,13 +372,6 @@ declare module '@tanstack/react-router' {
       path: '/retencao-visual/teste'
       fullPath: '/retencao-visual/teste'
       preLoaderRoute: typeof RetencaoVisualTesteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/questionario/intro': {
-      id: '/questionario/intro'
-      path: '/questionario/intro'
-      fullPath: '/questionario/intro'
-      preLoaderRoute: typeof QuestionarioIntroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portugues/preview': {
@@ -483,16 +463,15 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConsentRoute: ConsentRoute,
   InterviewRoute: InterviewRoute,
   MainRoute: MainRoute,
-  QuestionnaireRoute: QuestionnaireRoute,
   EntrevistaGravarRoute: EntrevistaGravarRoute,
   EntrevistaPreviewRoute: EntrevistaPreviewRoute,
   LogicoIntroRoute: LogicoIntroRoute,
   LogicoPreviewRoute: LogicoPreviewRoute,
   PortuguesGravarRoute: PortuguesGravarRoute,
   PortuguesPreviewRoute: PortuguesPreviewRoute,
-  QuestionarioIntroRoute: QuestionarioIntroRoute,
   RetencaoVisualTesteRoute: RetencaoVisualTesteRoute,
   EntrevistaIndexRoute: EntrevistaIndexRoute,
   LogicoIndexRoute: LogicoIndexRoute,

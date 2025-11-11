@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { BASE_URL } from './apiPaths'; // Certifique-se que importa de apiPaths.ts
+import { toast } from 'sonner'
 
 // Cria a instância do Axios com configurações base
 const apiClient = axios.create({
@@ -40,63 +41,62 @@ apiClient.interceptors.request.use(
 // --- Interceptor de Resposta (Response Interceptor) ---
 // Lida com erros globais de forma centralizada
 apiClient.interceptors.response.use(
-  // Se a resposta for bem-sucedida, apenas a retorna
   (response) => {
-    return response;
+    return response
   },
-  // Se ocorrer um erro, ele é tratado aqui
   (error: AxiosError<ApiErrorResponse>) => {
-    // Verifica se o erro possui uma resposta do servidor
     if (error.response) {
-      const { status, data } = error.response;
-      const errorMessage = data?.message || "Erro desconhecido da API";
-      const errorCode = data?.error || "UNKNOWN_API_ERROR";
+      const { status, data } = error.response
+      const errorMessage = data?.message || 'Erro desconhecido da API'
 
-      // Erro 401: Não autorizado (token inválido ou expirado)
-      if (status === 401) {
-        // Limpa o token antigo e redireciona para a página de login
-        // Idealmente, você usaria o gerenciamento de estado (Zustand?) para limpar dados do usuário
-        console.error("Erro 401: Não autorizado ou sessão expirada.", errorMessage);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('candidate'); // Limpa também dados do candidato
-        // Redireciona para a tela inicial do fluxo de login (onde pede CPF/Email)
-        // Certifique-se que '/auth/request-token' é a rota correta no seu frontend
-        window.location.href = '/auth/request-token';
-        // Você pode querer mostrar uma notificação (toast) aqui
-        // toast.error("Sua sessão expirou. Por favor, faça login novamente.");
+      // --- INÍCIO DA MUDANÇA ---
 
+      // Erro 401 (Não autorizado) ou 403 (Proibido)
+      // Ambos indicam um problema de autenticação/permissão.
+      // A melhor solução é limpar o estado local e forçar o login.
+      if (status === 401 || status === 403) {
+        console.error(
+          `Erro ${status}: ${errorMessage}. Limpando sessão e redirecionando para login.`,
+        )
+        toast.error('Sua sessão é inválida ou expirou. Por favor, faça login novamente.')
+
+        // Limpa o token antigo e os dados do candidato
+        localStorage.removeItem('authToken')
+        localStorage.removeItem('candidate')
+
+        // Redireciona para a tela inicial de login (V1)
+        // (O fluxo V1 usa a rota '/')
+        window.location.href = '/'
       }
-      // Erro 403: Proibido (ex: IDOR - tentou acessar dados de outro candidato)
-      else if (status === 403) {
-           console.error("Erro 403: Acesso proibido.", errorMessage);
-           // Talvez redirecionar para uma página de "não autorizado" ou mostrar um toast
-           // toast.error("Você não tem permissão para acessar este recurso.");
-      }
+      // --- FIM DA MUDANÇA ---
+
       // Erro 500: Erro interno do servidor
       else if (status >= 500) {
-        console.error("Erro interno do servidor (5xx).", errorMessage);
-        // Mostrar um toast genérico para erro de servidor
-        // toast.error("Ocorreu um erro no servidor. Tente novamente mais tarde.");
+        console.error('Erro interno do servidor (5xx).', errorMessage)
+        toast.error('Ocorreu um erro no servidor. Tente novamente mais tarde.')
       }
-      // Outros erros (400, 404, 409, etc.) - serão tratados localmente pelo useMutation/useQuery
+      // Outros erros (400, 404, 409, etc.)
       else {
-          console.warn(`Erro ${status}: ${errorCode} - ${errorMessage}`);
+        console.warn(`Erro ${status}: ${errorMessage}`)
       }
     }
-    // Lida com erros de rede (ex: timeout, servidor offline)
+    // Lida com erros de rede
     else if (error.request) {
-       console.error("Erro de rede ou timeout:", error.message);
-       // Mostrar um toast genérico para erro de rede
-       // toast.error("Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.");
+      console.error('Erro de rede ou timeout:', error.message)
+      toast.error(
+        'Não foi possível conectar ao servidor. Verifique sua conexão.',
+      )
     }
-    // Erro na configuração do Axios ou outro erro inesperado
+    // Erro na configuração
     else {
-      console.error('Erro inesperado na configuração da requisição:', error.message);
+      console.error(
+        'Erro inesperado na configuração da requisição:',
+        error.message,
+      )
     }
 
-    // Retorna o erro para que possa ser tratado localmente também (ex: em um .catch() no TanStack Query)
-    return Promise.reject(error);
-  }
+    return Promise.reject(error)
+  },
 );
 
 export default apiClient;

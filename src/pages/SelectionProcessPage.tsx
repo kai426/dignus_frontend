@@ -3,15 +3,17 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { TestCard } from "@/components/TestCard";
 import MainLayout from "@/layouts/MainLayout";
 import { useParams } from '@tanstack/react-router';
-import { useCandidateProgress } from '@/hooks/useProgress'; 
-import { getTestDetails } from '@/config/tests'; 
+import { useCandidateProgress } from '@/hooks/useProgress';
+import { getTestDetails } from '@/config/tests';
+import { useEffect } from "react";
+import { useMediaStore } from "@/store/useMediaStore";
 
 const mapApiStatusToComponentStatus = (apiStatus: "NotStarted" | "InProgress" | "Completed"): 'pending' | 'completed' | 'not_finished' => {
   switch (apiStatus) {
     case "Completed":
       return "completed";
     case "InProgress":
-      return "not_finished"; 
+      return "not_finished";
     case "NotStarted":
     default:
       return "pending";
@@ -19,9 +21,18 @@ const mapApiStatusToComponentStatus = (apiStatus: "NotStarted" | "InProgress" | 
 };
 
 const SelectionProcessPage = () => {
+  const stream = useMediaStore((s) => s.stream);
+  const powerOff = useMediaStore((s) => s.powerOff);
+
+  useEffect(() => {
+    if (stream?.active) {
+      powerOff();
+    }
+  }, [stream, powerOff]);
+
   // Pega o ID do candidato da URL (ex: /selection-process/guid-do-candidato)
   const { candidateId } = useParams({ from: '/selection-process/$candidateId/' });
-  
+
   // Busca os dados de progresso da API usando o hook e o ID
   const { data: progressData, isLoading, isError } = useCandidateProgress(candidateId);
 
@@ -34,7 +45,7 @@ const SelectionProcessPage = () => {
   }
 
   // --- Preparação dos Dados para Renderização ---
-  
+
   // Combina os dados dinâmicos (status) com os dados estáticos (título, ícone, etc.)
   const testsToDisplay = progressData ? Object.values(progressData.testProgress).map(apiTest => {
     const details = getTestDetails(apiTest.testType);
