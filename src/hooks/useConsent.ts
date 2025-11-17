@@ -3,69 +3,93 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
-import { getConsentStatus, submitConsent } from '@/api/consent'
+import {
+  getConsentStatus,
+  submitConsent,
+  type SubmitConsentPayload,
+  type ConsentStatusDto,
+} from '@/api/consent'
 import { getStoredCandidate } from '@/api/auth'
-import type { ApiError } from '@/@types/tests' // Seu tipo de erro Padrão
+import type { ApiError } from '@/@types/tests'
+import { onlyDigits } from '@/utils/cpfUtils'
 
-// Payload que o hook vai receber da página (ConsentPage)
-interface ConsentVariables {
-  acceptPrivacyPolicy: boolean
-  acceptDataSharing: boolean
-  acceptCreditAnalysis: boolean
+/**
+ * Interface que a Página (ConsentPage) passa para o hook.
+ * A página continua simples, só se importa com um aceite.
+ */
+interface ConsentHookVariables {
+  hasAccepted: boolean
 }
 
 /**
  * Hook para enviar o aceite de consentimento.
- * Usado pela ConsentPage.
  */
 export const useSubmitConsent = () => {
   const navigate = useNavigate()
-  const candidate = getStoredCandidate() // Pega os dados do localStorage
+  const candidate = getStoredCandidate()
 
-  return useMutation<unknown, AxiosError<ApiError>, ConsentVariables>({
-    mutationFn: (variables) => {
-      if (!candidate?.cpf) {
+  return useMutation<unknown, AxiosError<ApiError>, ConsentHookVariables>({
+    mutationFn: async (variables) => {
+      const safeCpf = candidate?.cpf ? onlyDigits(candidate.cpf) : null
+
+      if (!safeCpf) {
         throw new Error(
-          'CPF do candidato não encontrado para enviar consentimento.',
+          'CPF do candidato não encontrado. Faça login novamente.',
         )
       }
-      // Envia o payload que o backend espera
-      return submitConsent({
-        cpf: candidate.cpf,
-        ...variables,
-      })
+
+      // --- AQUI ESTÁ A CORREÇÃO ---
+      // Traduz o 'hasAccepted: true' da página
+      // para o payload granular que o backend espera.
+      const payload: SubmitConsentPayload = {
+        cpf: safeCpf,
+        acceptPrivacyPolicy: variables.hasAccepted, // true
+        acceptDataSharing: variables.hasAccepted,   // true
+        acceptCreditAnalysis: variables.hasAccepted, // true
+      }
+
+      // Envia o payload completo
+      return submitConsent(payload)
     },
     onSuccess: () => {
-      toast.success('Termo aceito. Redirecionando para os testes...')
-      // Navega para a página de seleção de processo após o sucesso
+      toast.success('Termo aceito. Redirecionando...')
       if (candidate?.id) {
         navigate({
           to: '/selection-process/$candidateId',
           params: { candidateId: candidate.id },
         })
       } else {
-        navigate({ to: '/' }) // Fallback para login
+        navigate({ to: '/' }) // Fallback
       }
     },
     onError: (error) => {
       console.error('Falha ao aceitar consentimento:', error)
+      // Mensagem genérica, pois o erro 400 agora é 'incomplete consent'
       const errorMsg =
-        error.response?.data?.message || 'Houve um erro ao salvar seu aceite.'
+        error.response?.data?.message ||
+        error.message ||
+        'Houve um erro ao salvar seu aceite.'
       toast.error(errorMsg)
     },
   })
 }
 
 /**
- * Hook para buscar o status de consentimento (se necessário em outros lugares).
- * Este hook não é usado pela ConsentPage, mas é uma boa prática mantê-lo.
+ * Hook para buscar o status de consentimento.
  */
 export const useConsentStatus = () => {
   const candidate = getStoredCandidate()
-  return useQuery({
-    queryKey: ['consentStatus', candidate?.cpf],
-    queryFn: getConsentStatus,
-    enabled: !!candidate?.cpf, // Só executa se o CPF existir
-    staleTime: Infinity, // Não precisa re-buscar
+  const safeCpf = candidate?.cpf ? onlyDigits(candidate.cpf) : undefined
+
+  return useQuery<ConsentStatusDto, AxiosError<ApiError>>({
+    queryKey: ['consentStatus', safeCpf],
+    queryFn: () => {
+      if (!safeCpf) {
+        throw new Error('CPF do candidato não encontrado para buscar status.')
+      }
+      return getConsentStatus(safeCpf)
+    },
+    enabled: !!safeCpf,
+    staleTime: Infinity,
   })
 }

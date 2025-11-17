@@ -24,15 +24,19 @@ interface ApiErrorResponse {
 // Adiciona o token de autenticação a cada requisição
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken'); // Nome da chave onde guarda o token JWT
+    const token = localStorage.getItem('authToken');
     if (token && config.headers) {
-      // Garante que o cabeçalho Authorization seja adicionado
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Se o corpo da requisição for FormData, remova o Content-Type para que o axios set automaticamente
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error) => {
-    // Retorna o erro para ser tratado pela chamada que o originou
     console.error("Erro no interceptor de requisição:", error);
     return Promise.reject(error);
   }

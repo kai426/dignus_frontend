@@ -40,11 +40,7 @@ export default function Recorder({ onBack, limitSeconds = 10 * 60 }: Props) {
         }));
 
       const mime =
-        MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-          ? "video/webm;codecs=vp9,opus"
-          : MediaRecorder.isTypeSupported("video/webm")
-          ? "video/webm"
-          : "";
+        MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
 
       const mr = new MediaRecorder(stream!, mime ? { mimeType: mime } : undefined);
       mediaRecRef.current = mr;

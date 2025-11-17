@@ -22,7 +22,8 @@ export type MediaState = {
   setCamera: (id?: string) => Promise<void>;
   setMic: (id?: string) => Promise<void>;
 
-  openStream: (cameraId?: string, micId?: string) => Promise<void>;
+  openStream: (cameraId?: string, micId?: string) => Promise<boolean>;
+
   stopStream: () => void;
 
   enableVideo: () => Promise<void>;
@@ -64,36 +65,62 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   setCamera: async (id) => { set({ cameraId: id }); },
   setMic: async (id) => { set({ micId: id }); },
 
-  openStream: async (cameraId, micId) => {
+  openStream: async (cameraId?: string, micId?: string): Promise<boolean> => {
     try {
+      // Para evitar conflito, fecha streams anteriores
       const prev = get().stream;
       prev?.getTracks().forEach((t) => t.stop());
-
       set({ stream: null });
 
       const useVideo = get().videoEnabled;
       const useAudio = get().audioEnabled;
 
+      // Nenhum dos dois habilitado? Apenas retorna sem erro
       if (!useVideo && !useAudio) {
         set({ stream: null, error: null });
-        return;
+        return false;
       }
 
       const constraints: MediaStreamConstraints = {
-        video: useVideo ? (cameraId ? { deviceId: { exact: cameraId } } : true) : false,
-        audio: useAudio ? (micId ? { deviceId: { exact: micId } } : true) : false,
+        video: useVideo
+          ? cameraId
+            ? { deviceId: { exact: cameraId } }
+            : true
+          : false,
+        audio: useAudio
+          ? micId
+            ? { deviceId: { exact: micId } }
+            : true
+          : false,
       };
 
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Checa se veio algo válido
+      if (!newStream || (!newStream.getVideoTracks().length && !newStream.getAudioTracks().length)) {
+        set({ stream: null, error: "Nenhum dispositivo válido encontrado." });
+        return false;
+      }
+
+      // Tudo certo
       set({ stream: newStream, error: null });
+      return true;
     } catch (err: any) {
       const name = err?.name;
-      if (name === "NotAllowedError") set({ error: "Permissão negada. Autorize câmera e microfone." });
-      else if (name === "NotFoundError") set({ error: "Dispositivo não encontrado." });
-      else set({ error: "Falha ao iniciar vídeo/áudio." });
+      if (name === "NotAllowedError") {
+        set({ error: "Permissão negada. Autorize câmera e microfone." });
+      } else if (name === "NotFoundError") {
+        set({ error: "Dispositivo não encontrado." });
+      } else {
+        set({ error: "Falha ao iniciar vídeo/áudio." });
+      }
+
       set({ stream: null });
+      console.error("openStream error:", err);
+      return false;
     }
   },
+
 
   stopStream: () => {
     const s = get().stream;
@@ -187,7 +214,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
     set({ testing: true, recordingUrl: null });
 
-    const rec = new MediaRecorder(recordable, { mimeType: "video/webm;codecs=vp9,opus" });
+    const mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+
+    const rec = mime
+      ? new MediaRecorder(recordable, { mimeType: mime })
+      : new MediaRecorder(recordable);
     const chunks: BlobPart[] = [];
     rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
     rec.onstop = () => {

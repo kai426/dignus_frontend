@@ -1,15 +1,12 @@
-// src/hooks/useAuth.ts
 import { useMutation, type UseMutationResult } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AxiosError } from 'axios'
+import axios, { AxiosError } from 'axios'
 import { onlyDigits } from '@/utils/cpfUtils'
 import apiClient from '@/api/apiClient'
 import { API_PATHS } from '@/api/apiPaths'
 import { toast } from 'sonner'
-// Importa o DTO que acabamos de definir
 import type { ConsentStatusDto } from '@/api/consent'
 
-// Interfaces V1 (do seu arquivo original)
 interface Candidate {
   id: string
   name: string
@@ -24,13 +21,11 @@ interface LoginResponse {
   expiresAt: string
 }
 
-// Interface de Erro
 interface ApiError {
   message?: string
   error?: string
 }
 
-// Função de requisição V1 (Login SÓ POR CPF)
 const loginRequest = async (cpf: string): Promise<LoginResponse> => {
   const payload = { cpf: onlyDigits(cpf) }
   const { data } = await apiClient.post<LoginResponse>(
@@ -40,7 +35,6 @@ const loginRequest = async (cpf: string): Promise<LoginResponse> => {
   return data
 }
 
-// Hook V1 com a lógica de verificação de consentimento
 export const useLogin = (): UseMutationResult<
   LoginResponse,
   AxiosError<ApiError | string>,
@@ -53,44 +47,54 @@ export const useLogin = (): UseMutationResult<
     onSuccess: async (data) => {
       console.log('Login V1 (CPF) bem-sucedido, salvando dados...', data)
 
-      // 1. Salva os dados de login no localStorage
       localStorage.setItem('authToken', data.token)
       localStorage.setItem('candidate', JSON.stringify(data.candidate))
 
       try {
-        // 2. LOGO APÓS o login, verifica o status de consentimento
         const consentPath = API_PATHS.CONSENT.GET_STATUS(data.candidate.cpf)
         const { data: consentStatus } =
           await apiClient.get<ConsentStatusDto>(consentPath)
 
-        // 3. Navega condicionalmente
-        // Verifica 'hasAccepted' (do backend novo) ou 'hasConsented' (do seu frontend)
-        if (consentStatus.hasAccepted || consentStatus.hasConsented) {
-          // Se JÁ consentiu, vai para os testes
+        if (consentStatus.hasAccepted) {
+          // 1. JÁ ACEITOU: Vai para os testes
           toast.success('Login bem-sucedido!')
           navigate({
             to: '/selection-process/$candidateId',
             params: { candidateId: data.candidate.id },
           })
         } else {
-          // Se NÃO consentiu, força a ida para a página de consentimento
+          // 2. TEM O REGISTRO, MAS NÃO ACEITOU: Força o consentimento
+          // (Este caso pode não acontecer, mas é bom ter)
           toast.info('Por favor, aceite os termos para continuar.')
           navigate({
             to: '/consent',
           })
         }
       } catch (consentError) {
-        // Trata erro na verificação do consentimento
-        console.error('Falha ao verificar consentimento:', consentError)
-        toast.error(
-          'Erro ao verificar seu status de consentimento. Tente novamente.',
-        )
-        localStorage.removeItem('authToken') // Limpa o login
-        localStorage.removeItem('candidate')
+        // --- AQUI ESTÁ A CORREÇÃO ---
+        // Verifica se o erro é um 404 (Não Encontrado)
+        if (axios.isAxiosError(consentError) && consentError.response?.status === 404) {
+          
+          // 3. NÃO TEM O REGISTRO (404): É um novo usuário, força o consentimento
+          // Isso NÃO é um erro fatal.
+          console.log('Status 404 recebido (normal para novo usuário). Redirecionando para /consent.')
+          toast.info('Por favor, aceite os termos para continuar.')
+          navigate({
+            to: '/consent',
+          })
+        } else {
+          // 4. OUTRO ERRO (500, 401, etc.): É uma falha real.
+          console.error('Falha ao verificar consentimento:', consentError)
+          toast.error(
+            'Erro ao verificar seu status de consentimento. Tente novamente.',
+          )
+          localStorage.removeItem('authToken') // Limpa o login
+          localStorage.removeItem('candidate')
+        }
       }
     },
     onError: (error) => {
-      // (Sua lógica de erro original)
+      // (Sua lógica de erro de login original está correta)
       let errorMessage = 'Ocorreu um erro inesperado. Tente novamente.'
       if (error.response) {
         if (

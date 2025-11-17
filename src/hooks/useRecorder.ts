@@ -49,11 +49,7 @@ export function useRecorder(limitSeconds: number) {
         }
 
         const mime =
-          MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-            ? "video/webm;codecs=vp9,opus"
-            : MediaRecorder.isTypeSupported("video/webm")
-              ? "video/webm"
-              : "";
+          MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
 
         const mr = new MediaRecorder(usedStream, mime ? { mimeType: mime } : undefined);
         mediaRecRef.current = mr;
@@ -65,11 +61,13 @@ export function useRecorder(limitSeconds: number) {
           setVideoBlob(blob);
           setRecording(false);
           try {
-            streamRef.current?.getTracks().forEach((t) => t.stop());
-            (streamRef.current as any)?.__stopMirroring?.();
+            if (ownsStreamRef.current) {
+              streamRef.current?.getTracks().forEach((t) => t.stop());
+              (streamRef.current as any)?.__stopMirroring?.();
+              streamRef.current = null;
+              ownsStreamRef.current = false;
+            }
           } catch { }
-          streamRef.current = null;
-          ownsStreamRef.current = false;
         };
 
         mr.start(1000);

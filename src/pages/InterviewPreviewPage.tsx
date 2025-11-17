@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import MediaPreview from "@/components/media/MediaPreview";
 import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
 import { useMediaStore } from "@/store/useMediaStore";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Video } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function InterviewPreviewPage() {
   const navigate = useNavigate();
@@ -14,6 +16,15 @@ export default function InterviewPreviewPage() {
   const setMic = useMediaStore((s) => s.setMic);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
+
+  const [openTest, setOpenTest] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+
 
   useEffect(() => {
     async function requestPermission() {
@@ -38,6 +49,47 @@ export default function InterviewPreviewPage() {
     if (!cameraId && data.cameras[0]) setCamera(data.cameras[0].deviceId);
     if (!micId && data.mics[0]) setMic(data.mics[0].deviceId);
   }, [data, cameraId, micId, setCamera, setMic]);
+
+  const startRecording = async () => {
+    try {
+      setIsRecording(true);
+      setVideoUrl(null);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunks.current = [];
+
+      recorder.ondataavailable = (e) => chunks.current.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks.current, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        setVideoUrl(url);
+        setIsRecording(false);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      recorder.start();
+      console.log("🎥 Iniciando gravação de teste (5s)");
+
+      setTimeout(() => {
+        console.log("⏹️ Parando gravação de teste");
+        recorder.stop();
+      }, 5500);
+    } catch (err) {
+      console.error("Erro ao gravar vídeo de teste:", err);
+      setIsRecording(false);
+    }
+  };
 
   if (checkingPermission) {
     return (
@@ -77,7 +129,7 @@ export default function InterviewPreviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB]">
+     <div className="min-h-screen bg-[#F9FAFB]">
       <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b-2 md:border-gray-200">
         <div className="relative flex h-full items-center px-4 md:px-6">
           <button
@@ -95,9 +147,51 @@ export default function InterviewPreviewPage() {
       <main className="py-6">
         <MediaPreview
           ctaLabel="Ir para a prova"
+          extraButton={
+            <Button
+              onClick={() => setOpenTest(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Video className="size-4" />
+              Gravar Teste (5s)
+            </Button>
+          }
           onContinue={() => navigate({ to: "/entrevista/gravar" })}
         />
       </main>
+
+      <Dialog open={openTest} onOpenChange={setOpenTest}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Teste de vídeo e áudio</DialogTitle>
+          </DialogHeader>
+
+          {!videoUrl && (
+            <div className="flex flex-col items-center gap-4">
+              <video
+                ref={videoRef}
+                className="rounded-lg w-full bg-black"
+                autoPlay
+                muted
+              ></video>
+              <Button onClick={startRecording} disabled={isRecording}>
+                {isRecording ? "Gravando..." : "Iniciar gravação (5s)"}
+              </Button>
+            </div>
+          )}
+
+          {videoUrl && (
+            <div className="flex flex-col items-center gap-4">
+              <video src={videoUrl} className="rounded-lg w-full" controls></video>
+              <div className="flex gap-3">
+                <Button onClick={startRecording}>Regravar</Button>
+                <Button onClick={() => setOpenTest(false)}>Fechar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

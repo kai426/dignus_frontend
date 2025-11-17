@@ -58,7 +58,7 @@ const testsConfig: Record<string, TestDetails> = {
     description: 'Teste de memória e reprodução visual.',
     startTo: "/retencao-visual/",
   },
-  "VideoInterview": {
+  "Interview": {
     id: '5',
     title: 'Entrevista de Vídeo',
     icon: QuestionDotIcon,

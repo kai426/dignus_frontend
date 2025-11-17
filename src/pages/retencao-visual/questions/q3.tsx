@@ -1,0 +1,101 @@
+// questions/q3.tsx
+import * as React from "react";
+import type { QuestionSpec, QuestionOptionsProps } from "./types";
+import type { OptionKey } from "@/components/options";
+import boardImg from "@/assets/retencao-visual/q3.png";
+import optA from "@/assets/retencao-visual/q3-opt-a.png";
+import optB from "@/assets/retencao-visual/q3-opt-b.png";
+import optC from "@/assets/retencao-visual/q3-opt-c.png";
+import optD from "@/assets/retencao-visual/q3-opt-d.png";
+import optE from "@/assets/retencao-visual/q3-opt-e.png";
+import optF from "@/assets/retencao-visual/q3-opt-f.png";
+
+/* =====================================================
+   Board 3×3 (posição 6 faltando)
+   ===================================================== */
+const Board: React.FC = () => {
+  return (
+    <div className="flex justify-center my-6">
+      <figure className="w-full max-w-[820px]">
+        <img
+          src={boardImg}
+          alt="Matriz 3x3 do teste de padrões, posição 6 faltando"
+          className="w-full h-auto"
+          sizes="(max-width: 640px) 100vw, 820px"
+          loading="eager"
+          decoding="async"
+        />
+      </figure>
+    </div>
+  );
+};
+
+/* =====================================================
+   Opções — correta = B (três setas →)
+   ===================================================== */
+const CORRECT: OptionKey = "B";
+
+const Options: React.FC<QuestionOptionsProps> = ({ selected, onSelect }) => {
+  const items: {
+    key: OptionKey;
+    aria: string;
+    src: string;
+  }[] = [
+    { key: "A", aria: "A: duas setas para baixo", src: optA },
+    { key: "B", aria: "B: três setas para a direita", src: optB }, // ✅ correta
+    { key: "C", aria: "C: quatro setas para cima", src: optC },
+    { key: "D", aria: "D: uma seta para a direita", src: optD },
+    { key: "E", aria: "E: três setas para a esquerda", src: optE },
+    { key: "F", aria: "F: três setas para baixo", src: optF },
+  ];
+
+  return (
+    <div className="mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 max-w-[820px] mx-auto">
+        {items.map(({ key, aria, src }) => {
+          const isSel = selected === key;
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              aria-label={aria}
+              className={[
+                "rv-option group", // group para aplicar hover na imagem
+                isSel ? "rv-option--active" : "rv-option--idle",
+              ].join(" ")}
+            >
+              <span className="rv-option-label">{key})</span>
+
+              <div className="rv-option-content">
+                <img
+                  src={src}
+                  alt={aria}
+                  className="w-full h-auto max-w-[200px] mx-auto transition-transform duration-200 select-none"
+                  sizes="(max-width: 640px) 45vw, 200px"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+
+              <span className="sr-only">
+                {key === CORRECT ? "Resposta correta" : "Resposta incorreta"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* =====================================================
+   Spec
+   ===================================================== */
+const Q3: QuestionSpec = {
+  id: 3,
+  prompt: "Qual alternativa completa logicamente a posição 6?",
+  Board,
+  Options,
+};
+
+export default Q3;

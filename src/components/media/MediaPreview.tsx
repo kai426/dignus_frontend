@@ -15,6 +15,7 @@ interface Props {
   subtitle?: string;
   ctaLabel?: string;
   onContinue: (r: MediaPreviewResult) => void;
+  extraButton?: React.ReactNode; // 👈 novo
 }
 
 export default function MediaPreview({
@@ -22,8 +23,8 @@ export default function MediaPreview({
   subtitle = "Verifique se câmera e microfone estão funcionando antes de iniciar",
   ctaLabel = "Continuar",
   onContinue,
+  extraButton,
 }: Props) {
-  // Hooks de estado e dados
   const stream = useMediaStore((s) => s.stream);
   const mirror = useMediaStore((s) => s.mirror);
   const cameraId = useMediaStore((s) => s.cameraId);
@@ -37,22 +38,16 @@ export default function MediaPreview({
   const powerOff = useMediaStore((s) => s.powerOff);
   const { data: devicesData } = useMediaDevicesQuery();
 
-
   useEffect(() => {
     const shouldHaveVideo = !!cameraId;
     const shouldHaveAudio = !!micId;
-
     useMediaStore.setState({ videoEnabled: shouldHaveVideo, audioEnabled: shouldHaveAudio });
-
     openStream(cameraId, micId);
-
-    return () => {
-      powerOff();
-    };
+    return () => powerOff();
   }, [cameraId, micId, openStream]);
 
-  const hasVideoTrack = useMemo(() => stream?.getVideoTracks().some(t => t.readyState === 'live') ?? false, [stream]);
-  const hasAudioTrack = useMemo(() => stream?.getAudioTracks().some(t => t.readyState === 'live') ?? false, [stream]);
+  const hasVideoTrack = useMemo(() => stream?.getVideoTracks().some(t => t.readyState === "live") ?? false, [stream]);
+  const hasAudioTrack = useMemo(() => stream?.getAudioTracks().some(t => t.readyState === "live") ?? false, [stream]);
 
   const readyVideo = videoEnabled && hasVideoTrack;
   const readyAudio = audioEnabled && hasAudioTrack;
@@ -73,11 +68,10 @@ export default function MediaPreview({
 
       {/* Container do Vídeo */}
       <div className="relative w-full max-w-2xl aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-300 shadow-sm mb-4">
-        <VideoPreview stream={stream} mirror={mirror} videoEnabled={videoEnabled} /> {/* */}
-        {/* Exibição de erro sobre o vídeo */}
+        <VideoPreview stream={stream} mirror={mirror} videoEnabled={videoEnabled} />
         {error && (
           <div className="absolute bottom-2 left-2 right-2 z-10">
-            <Alert variant="destructive" className="bg-red-50/90 backdrop-blur-sm"> {/* */}
+            <Alert variant="destructive" className="bg-red-50/90 backdrop-blur-sm">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Erro</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
@@ -88,24 +82,21 @@ export default function MediaPreview({
 
       {/* Barra de Controles */}
       <div className="w-full max-w-2xl flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        {/* Lado Esquerdo: Audio Meter */}
         <div className="w-full sm:w-auto flex-grow sm:flex-grow-0 sm:min-w-[150px]">
-          <AudioMeter stream={streamForMeter} /> {/* */}
+          <AudioMeter stream={streamForMeter} />
         </div>
 
-        {/* Lado Direito: Seletores de Dispositivo */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-          {/* Seletor de Câmera */}
           <Select value={cameraId || ""} onValueChange={setCamera}>
             <SelectTrigger className="w-full sm:w-[200px] bg-white">
               <Video className="h-4 w-4 mr-2 flex-shrink-0" />
               <SelectValue placeholder="Selecionar câmera..." />
             </SelectTrigger>
             <SelectContent>
-              {devicesData?.cameras && devicesData.cameras.length > 0 ? (
+              {devicesData?.cameras?.length ? (
                 devicesData.cameras
-                  .filter(cam => cam.deviceId && cam.deviceId.trim() !== "")
-                  .map((cam) => (
+                  .filter(cam => cam.deviceId?.trim())
+                  .map(cam => (
                     <SelectItem key={cam.deviceId} value={cam.deviceId}>
                       {cam.label || `Câmera ${cam.deviceId.substring(0, 6)}`}
                     </SelectItem>
@@ -122,10 +113,10 @@ export default function MediaPreview({
               <SelectValue placeholder="Selecionar microfone..." />
             </SelectTrigger>
             <SelectContent>
-              {devicesData?.mics && devicesData.mics.length > 0 ? (
+              {devicesData?.mics?.length ? (
                 devicesData.mics
-                  .filter(mic => mic.deviceId && mic.deviceId.trim() !== "")
-                  .map((mic) => (
+                  .filter(mic => mic.deviceId?.trim())
+                  .map(mic => (
                     <SelectItem key={mic.deviceId} value={mic.deviceId}>
                       {mic.label || `Microfone ${mic.deviceId.substring(0, 6)}`}
                     </SelectItem>
@@ -138,16 +129,9 @@ export default function MediaPreview({
         </div>
       </div>
 
-      {/* Botão Principal e Dicas */}
-      <div className="mt-8 w-full max-w-2xl flex flex-col items-center">
-        {/* Checklist de prontidão (simplificado) */}
-        {!canContinue && !error && (
-          <div className="mb-4 text-xs text-center text-orange-600 flex items-center gap-1.5">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            <span>Para continuar, selecione e permita o acesso à <strong>câmera</strong> e ao <strong>microfone</strong>.</span>
-          </div>
-        )}
-
+      {/* Botões */}
+      <div className="mt-8 w-full max-w-2xl flex flex-col sm:flex-row items-center justify-center gap-3">
+        {extraButton && extraButton}
         <Button
           size="lg"
           className="w-full sm:w-auto sm:px-10 rounded-lg bg-[#0385d1] text-white hover:bg-[#0271b2] transition"
@@ -156,17 +140,17 @@ export default function MediaPreview({
         >
           {ctaLabel}
         </Button>
-
-        {/* Dicas rápidas */}
-        <Alert className="mt-6 w-full text-left bg-blue-50 border-blue-200"> {/* */}
-          <Info className="h-4 w-4 text-blue-700" />
-          <AlertTitle className="text-blue-800">Dicas rápidas</AlertTitle>
-          <AlertDescription className="text-blue-700">
-            Feche outros aplicativos que usam a câmera (Meet, Zoom, Teams). Se não funcionar,
-            atualize a página. Use Safari no iOS ou Chrome no Android/Desktop.
-          </AlertDescription>
-        </Alert>
       </div>
+
+      {/* Dicas */}
+      <Alert className="mt-6 w-full text-left bg-blue-50 border-blue-200">
+        <Info className="h-4 w-4 text-blue-700" />
+        <AlertTitle className="text-blue-800">Dicas rápidas</AlertTitle>
+        <AlertDescription className="text-blue-700">
+          Feche outros aplicativos que usam a câmera (Meet, Zoom, Teams). Se não funcionar,
+          atualize a página. Use Safari no iOS ou Chrome no Android/Desktop.
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

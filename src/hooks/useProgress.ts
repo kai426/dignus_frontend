@@ -20,7 +20,7 @@ interface ProgressDto {
 
 // Função que chama a API
 const fetchProgress = async (candidateId: string): Promise<ProgressDto> => {
-  const { data } = await apiClient.get(`/api/auth/progress/${candidateId}`);
+  const { data } = await apiClient.get(`/api/v2/tests/candidate/${candidateId}/progress`);
   return data;
 };
 

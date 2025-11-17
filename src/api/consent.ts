@@ -1,46 +1,36 @@
+// src/api/consent.ts
 import apiClient from './apiClient'
-import { API_PATHS } from './apiPaths'
-import { getStoredCandidate } from './auth'
-
-// Interface para o DTO de submissão do backend
-interface SubmitConsentPayload {
+import { API_PATHS, CONSENT } from './apiPaths'
+export interface SubmitConsentPayload {
   cpf: string
   acceptPrivacyPolicy: boolean
   acceptDataSharing: boolean
   acceptCreditAnalysis: boolean
 }
 
-// --- INÍCIO DA ADIÇÃO ---
-// Interface para a resposta do status (DTO que faltava)
+/**
+ * Payload da RESPOSTA do status de consentimento (GET /api/consent/status/{cpf})
+ */
 export interface ConsentStatusDto {
-  hasAccepted: boolean // O backend V1 (legacy) usa 'hasConsented', mas o V2 usa 'hasAccepted'
-  acceptedAt?: string
-  privacyPolicyVersion?: string
-  // Adicionando a propriedade do V1 caso o backend esteja misto
-  hasConsented?: boolean 
+  hasAccepted: boolean // O 'GET' pode retornar um 'hasAccepted' consolidado
 }
 
 /**
- * Busca o status de consentimento atual do candidato.
+ * Envia o aceite de consentimento para a API.
  */
-export async function getConsentStatus(): Promise<ConsentStatusDto> {
-  const candidate = getStoredCandidate()
-  if (!candidate?.cpf) {
-    throw new Error('Candidato não encontrado para checar consentimento.')
-  }
-
-  const path = API_PATHS.CONSENT.GET_STATUS(candidate.cpf)
-  const { data } = await apiClient.get<ConsentStatusDto>(path)
+export const submitConsent = async (payload: SubmitConsentPayload) => {
+  // Esta chamada agora enviará o payload completo
+  const { data } = await apiClient.post(CONSENT, payload)
   return data
 }
 
 /**
- * Envia o aceite do termo de consentimento.
+ * Busca o status de consentimento (se já foi dado).
  */
-export async function submitConsent(
-  payload: SubmitConsentPayload,
-): Promise<unknown> {
-  const path = API_PATHS.CONSENT.SUBMIT
-  const { data } = await apiClient.post(path, payload)
+export const getConsentStatus = async (
+  cpf: string,
+): Promise<ConsentStatusDto> => {
+  const path = API_PATHS.CONSENT.GET_STATUS(cpf)
+  const { data } = await apiClient.get<ConsentStatusDto>(path)
   return data
 }

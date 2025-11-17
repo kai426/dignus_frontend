@@ -8,9 +8,12 @@ import { getTestDetails } from '@/config/tests';
 import { useEffect } from "react";
 import { useMediaStore } from "@/store/useMediaStore";
 
-const mapApiStatusToComponentStatus = (apiStatus: "NotStarted" | "InProgress" | "Completed"): 'pending' | 'completed' | 'not_finished' => {
+const mapApiStatusToComponentStatus = (
+  apiStatus: "NotStarted" | "InProgress" | "Completed" | "Submitted"
+): "pending" | "completed" | "not_finished" => {
   switch (apiStatus) {
     case "Completed":
+    case "Submitted":
       return "completed";
     case "InProgress":
       return "not_finished";
@@ -47,14 +50,16 @@ const SelectionProcessPage = () => {
   // --- Preparação dos Dados para Renderização ---
 
   // Combina os dados dinâmicos (status) com os dados estáticos (título, ícone, etc.)
-  const testsToDisplay = progressData ? Object.values(progressData.testProgress).map(apiTest => {
-    const details = getTestDetails(apiTest.testType);
-    return {
-      ...details,
-      status: mapApiStatusToComponentStatus(apiTest.status),
-      // Não precisamos mais modificar o 'startTo' aqui!
-    };
-  }) : [];
+  const testsToDisplay = progressData
+    ? Object.values(progressData.testProgress).map(apiTest => {
+      const details = getTestDetails(apiTest.testType);
+      return {
+        ...details,
+        status: mapApiStatusToComponentStatus(apiTest.status),
+        isCompleted: apiTest.isCompleted,
+      };
+    })
+    : [];
 
   return (
     <MainLayout>

@@ -40,9 +40,7 @@ export default function PortugueseTestIntroPage({
           <h2 className="text-xl font-semibold text-gray-900">Instruções</h2>
 
           <p className="mx-auto mt-2 max-w-[460px] text-sm leading-relaxed text-gray-500">
-            Você terá até <span className="font-semibold text-gray-700">30 minutos</span> para
-            gravar um vídeo lendo um texto que será disponibilizado na próxima etapa.
-            Durante a gravação, serão considerados os seguintes aspectos:
+           Você responderá 3 perguntas em vídeo e fará uma leitura em vídeo de um texto. Antes de cada pergunta e antes da leitura, haverá uma contagem regressiva de 5 segundos, e você terá 1 minuto para cada resposta. O tempo total e
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-3">

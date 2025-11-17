@@ -18,8 +18,6 @@ export default function PortugueseTestRunRoute() {
   };
 
   return (
-    <PortugueseTestRunPage
-      onBack={handleBack} // Passa a função dinâmica como prop
-    />
+    <PortugueseTestRunPage/>
   );
 }
