@@ -131,22 +131,55 @@ export interface TestSubmissionResultDto {
     message: string;
 }
 
-// Tipagens para o Questionário de 9 Seções
-export type Answers = Record<string, string | string[] | number | null>
+export interface TestQuestion {
+  id: string;
+  questionText: string;
+  optionsJson: string | null; // Vem como string JSON do banco
+  allowMultipleAnswers: boolean;
+  maxAnswersAllowed: number | null;
+  questionOrder: number;
+  pointValue: number;
+  estimatedTimeSeconds: number | null;
+}
+
+export interface TestInstanceV2 {
+  id: string;
+  testType: string; // "Psychology", "Portuguese", etc.
+  status: 'NotStarted' | 'InProgress' | 'Submitted' | 'Approved' | 'Rejected';
+  startedAt: string | null;
+  completedAt: string | null;
+  timeLimitSeconds: number | null;
+  questions: TestQuestion[];
+}
+
+export interface AnswerPayload {
+  questionSnapshotId: string;
+  selectedAnswers: string[];
+  responseTimeMs: number;
+}
+
+export interface SubmitTestPayload {
+  testId: string;
+  candidateId: string;
+  answers: AnswerPayload[]; // Para Psicologia deve ser enviado vazio [] no submit final
+}
 export interface Option {
   id: string
   label: string
 }
+
 export interface Question {
   id: string
-  prompt: string
+  prompt: string // O componente visual espera 'prompt', a API manda 'questionText'
   options: Option[]
   type: 'single' | 'multi' | 'text' | 'number' | 'range'
   maxSelections?: number
   placeholder?: string
   isRequired: boolean
+  pointValue?: number
 }
 
+export type Answers = Record<string, string | string[] | number | null>
 export interface Section {
   id: string
   title: string
@@ -154,6 +187,7 @@ export interface Section {
   order: number
   isCompleted: boolean
 }
+
 export interface Questionnaire {
   title: string
   sections: Section[]
@@ -163,9 +197,4 @@ export interface Questionnaire {
   startedAt?: string
   completedAt?: string
   isCompleted?: boolean
-}
-// Interface para a estrutura de erro esperada da API
-export interface ApiError {
-  error?: string;
-  message?: string;
 }

@@ -13,6 +13,8 @@ import { useQuestionRecorder } from "@/hooks/useQuestionRecorder";
 import { QuestionNavigator } from "@/components/QuestionNavigator";
 import { QuestionVideo } from "@/components/QuestionVideo";
 import { TestControls } from "@/components/TestControls";
+import { ConfirmExitTestDialog } from "@/components/ConfirmExitTestDialog";
+
 
 const PREP_SECONDS = 5;
 const PER_QUESTION_SECONDS = 90;
@@ -37,6 +39,7 @@ export default function LogicalTestPage() {
   const [openStop, setOpenStop] = useState(false);
   const [loadingStart, setLoadingStart] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(false);
+  const [openExitTest, setOpenExitTest] = useState(false);
 
   const isLast = currentIdx === questions.length - 1;
   const totalMinutes = Math.ceil((questions.length * PER_QUESTION_SECONDS) / 60);
@@ -54,8 +57,51 @@ export default function LogicalTestPage() {
 
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
+  const [skipAutoNavigation, setSkipAutoNavigation] = useState(false);
+
+  if (!candidateId) {
+    toast.error("ID do candidato não encontrado.");
+    return null;
+  }
+
+  useEffect(() => {
+    const bloqueada = localStorage.getItem("prova_matematica_bloqueada");
+
+    if (!skipAutoNavigation && bloqueada === "true" && phase === "idle") {
+      powerOff();
+      navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "";
+      };
+
+      window.addEventListener("beforeunload", handler);
+      return () => window.removeEventListener("beforeunload", handler);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handleBack = (e: PopStateEvent) => {
+        e.preventDefault();
+        setOpenExitTest(true);
+        window.history.pushState(null, "", window.location.pathname);
+      };
+
+      window.history.pushState(null, "", window.location.pathname);
+      window.addEventListener("popstate", handleBack);
+
+      return () => window.removeEventListener("popstate", handleBack);
+    }
+  }, [phase]);
 
   async function handleAllVideosReady(blobs: (Blob | null)[]) {
+    setSkipAutoNavigation(true);
     if (!candidateId || !testId) return toast.error("Dados inválidos.");
 
     try {
@@ -150,6 +196,8 @@ export default function LogicalTestPage() {
     setOpenStart(false);
     setLoadingStart(true);
 
+    localStorage.setItem("prova_matematica_bloqueada", "true");
+
     try {
       const streamOk = await openStream(cameraId, micId);
       if (!streamOk) throw new Error("Falha ao abrir câmera/microfone");
@@ -170,15 +218,17 @@ export default function LogicalTestPage() {
   };
 
   function onBack() {
-    if (!globalLoading && !loadingStart) window.history.back();
+    if (phase !== "idle") {
+      setOpenExitTest(true);
+      return;
+    }
+    window.history.back();
   }
 
   if (!candidateId) {
     toast.error("ID do candidato não encontrado.");
     return null;
   }
-
-  
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] relative">
@@ -243,6 +293,16 @@ export default function LogicalTestPage() {
               ? "Você está prestes a finalizar o teste. Deseja encerrar agora?"
               : "Avançar agora encerrará e enviará a resposta desta pergunta. Deseja continuar?"
           }
+        />
+
+        <ConfirmExitTestDialog
+          open={openExitTest}
+          onOpenChange={setOpenExitTest}
+          onConfirm={() => {
+            powerOff();
+            localStorage.removeItem("prova_matematica_bloqueada");
+            navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+          }}
         />
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

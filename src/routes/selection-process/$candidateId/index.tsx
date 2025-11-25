@@ -1,7 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import SelectionProcessPage from '@/pages/SelectionProcessPage'; 
+import SelectionProcessPage from '@/pages/SelectionProcessPage'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-// Esta rota corresponde à URL /selection-process/$candidateId
 export const Route = createFileRoute('/selection-process/$candidateId/')({
+  beforeLoad: ({ context, params }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({ to: '/' })
+    }
+  },
   component: SelectionProcessPage,
-});
+})

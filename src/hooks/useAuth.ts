@@ -6,6 +6,7 @@ import apiClient from '@/api/apiClient'
 import { API_PATHS } from '@/api/apiPaths'
 import { toast } from 'sonner'
 import type { ConsentStatusDto } from '@/api/consent'
+import { useAuth } from '@/context/AuthContext'
 
 interface Candidate {
   id: string
@@ -41,14 +42,14 @@ export const useLogin = (): UseMutationResult<
   string
 > => {
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   return useMutation({
     mutationFn: loginRequest,
     onSuccess: async (data) => {
       console.log('Login V1 (CPF) bem-sucedido, salvando dados...', data)
 
-      localStorage.setItem('authToken', data.token)
-      localStorage.setItem('candidate', JSON.stringify(data.candidate))
+      login(data);
 
       try {
         const consentPath = API_PATHS.CONSENT.GET_STATUS(data.candidate.cpf)

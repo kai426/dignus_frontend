@@ -1,5 +1,5 @@
-import type { Question } from "@/@types";
-import { TOTAL_QUESTIONS } from "@/mocks/questionario";
+// src/lib/helper.tsx
+import type { Question } from "@/@types/tests"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +8,8 @@ import { CountryCombobox } from "@/components/forms/CountryCombobox";
 import { isValidCID } from "@/utils/validators";
 import { Progress } from "@/components/ui/progress";
 
-export function ProgressHeader({ answered }: { answered: number }) {
-  const total = TOTAL_QUESTIONS;
+// ALTERAÇÃO: Adicionada prop 'total' e removida dependência de TOTAL_QUESTIONS
+export function ProgressHeader({ answered, total }: { answered: number; total: number }) {
   const progressPct = total > 0 ? Math.min(100, Math.round((answered / total) * 100)) : 0;
 
   return (
@@ -135,11 +135,11 @@ export function QuestionBlock({
             })}
           </div>
 
-          {/* ========== Q47: PCD -> CID + Anexo (com validação) ========== */}
+          {/* Lógica específica para questões especiais (mantida) */}
           {q.id === "q-47" && !isMulti && selectedIds[0] === "a" && (
             <div className="mt-4 space-y-3">
-              {/* CID */}
-              <div>
+               {/* ... conteúdo mantido ... */}
+               <div>
                 <Label htmlFor="cid" className="text-[13px] text-gray-800">
                   Informe seu CID:
                 </Label>
@@ -168,16 +168,13 @@ export function QuestionBlock({
                   );
                 })()}
               </div>
-
-              {/* Anexo */}
-              <FileUploaderButton
+               <FileUploaderButton
                 files={(q as any).__get?.("q-47:files") ?? []}
                 onChange={(files) => (q as any).__set?.("q-47:files", files)}
               />
             </div>
           )}
 
-          {/* ========== Q48: Estrangeiro -> País (combobox) ========== */}
           {q.id === "q-48" && !isMulti && selectedIds[0] === "a" && (
             <div className="mt-4 space-y-2">
               <Label className="text-[13px] text-gray-800">

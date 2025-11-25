@@ -1,9 +1,14 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+interface MyRouterContext {
+  auth: {
+    isAuthenticated: boolean
+    token: string | null
+  }
+}
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<MyRouterContext>()({
   component: () => (
     <>
-      {/* O Outlet renderizará a rota filha correspondente */}
       <Outlet />
     </>
   ),

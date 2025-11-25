@@ -53,9 +53,17 @@ const SelectionProcessPage = () => {
   const testsToDisplay = progressData
     ? Object.values(progressData.testProgress).map(apiTest => {
       const details = getTestDetails(apiTest.testType);
+      let status = mapApiStatusToComponentStatus(apiTest.status);
+      
+      if (apiTest.testType === "Psychology") {
+        if (!apiTest.isCompleted) {
+          status = "pending";
+        }
+      }
+
       return {
         ...details,
-        status: mapApiStatusToComponentStatus(apiTest.status),
+        status,
         isCompleted: apiTest.isCompleted,
       };
     })

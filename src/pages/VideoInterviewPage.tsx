@@ -1,231 +1,259 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Circle, Square, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import Webcam from "react-webcam";
-import { useRecorder } from "@/hooks/useRecorder";
-import { TimerProgress } from "@/components/TimerProgress";
-import { INTERVIEW_QUESTIONS } from "@/features/interview-test/questions";
-import { InstructionsPanel } from "@/features/interview-test/InstructionsPanel";
-
-// Store/Dialogs/Toast
-import { useMediaStore } from "@/store/useMediaStore";
-import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
-import { ConfirmStopDialog } from "@/components/media/ConfirmStopDialog";
+import { useEffect, useState } from "react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+
+import { useMediaStore } from "@/store/useMediaStore";
 import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
+
+import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
+import { ConfirmStopDialog } from "@/components/media/ConfirmStopDialog";
+import { ConfirmExitTestDialog } from "@/components/ConfirmExitTestDialog";
+
 import { getStoredCandidate } from "@/api/auth";
+import { TestType } from "@/api/apiPaths";
 
-const TOTAL_LIMIT_SECONDS = 10 * 60;
-const QUESTION_LIMIT_SECONDS = 2 * 60;
+import { useTestFlow } from "@/hooks/useTestFlow";
+import { useQuestionRecorder } from "@/hooks/useQuestionRecorder";
+
+import { QuestionNavigator } from "@/components/QuestionNavigator";
+import { QuestionVideo } from "@/components/QuestionVideo";
+import { TestControls } from "@/components/TestControls";
+import { InstructionsPanel } from "@/features/interview-test/InstructionsPanel";
+
 const PREP_SECONDS = 5;
-const TOTAL_MINUTES = Math.ceil(TOTAL_LIMIT_SECONDS / 60);
+const PER_QUESTION_SECONDS = 120;
 
-type Phase = "idle" | "prep" | "recording";
+export default function VideoInterviewTestPage() {
+  const navigate = useNavigate();
+  const candidate = getStoredCandidate();
+  const candidateId = candidate?.id;
 
-export default function VideoInterviewPage() {
-  // grava por pergunta (2 min)
-  const { start, stop, elapsed, videoBlob, error, setSourceStream } =
-    useRecorder(QUESTION_LIMIT_SECONDS);
+  const {
+    testId,
+    isLoading,
+    questions,
+    error,
+    createOrGetActiveTest,
+    uploadVideo,
+    submitTest,
+  } = useTestFlow();
 
-  // índice e fases
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const total = INTERVIEW_QUESTIONS.length;
-  const isLast = currentIdx === total - 1;
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [prepLeft, setPrepLeft] = useState(PREP_SECONDS);
+  const {
+    phase,
+    currentIdx,
+    prepLeft,
+    elapsed,
+    startPrep,
+    stop,
+  } = useQuestionRecorder(
+    questions.length,
+    PREP_SECONDS,
+    PER_QUESTION_SECONDS,
+    handleAllVideosReady
+  );
 
-  // modais
+  // dialogs
   const [openStart, setOpenStart] = useState(false);
   const [openStop, setOpenStop] = useState(false);
+  const [openExitTest, setOpenExitTest] = useState(false);
 
-  // store de mídia + helpers
+  const [loadingStart, setLoadingStart] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [skipAutoNavigation, setSkipAutoNavigation] = useState(false);
+  const [instructionsPanel, setInstructionsPanel] = useState(false);
+
+  const isLast = currentIdx === questions.length - 1;
+  const totalMinutes = Math.ceil((questions.length * PER_QUESTION_SECONDS) / 60);
+
   const mirror = useMediaStore((s) => s.mirror);
   const cameraId = useMediaStore((s) => s.cameraId);
   const micId = useMediaStore((s) => s.micId);
   const videoEnabled = useMediaStore((s) => s.videoEnabled);
   const audioEnabled = useMediaStore((s) => s.audioEnabled);
-  const enableVideo = useMediaStore((state) => state.enableVideo);
-  const enableAudio = useMediaStore((state) => state.enableAudio);
   const openStream = useMediaStore((s) => s.openStream);
-  const makeRecordableStream = useMediaStore((s) => s.makeRecordableStream);
-  const navigate = useNavigate();
   const powerOff = useMediaStore((s) => s.powerOff);
   const setCamera = useMediaStore((s) => s.setCamera);
   const setMic = useMediaStore((s) => s.setMic);
 
-
   const { data, refetch } = useMediaDevicesQuery();
-  const candidate = getStoredCandidate();
-  const candidateId = candidate?.id;
 
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
 
-  useEffect(() => {
-    async function requestPermission() {
-      try {
-        setCheckingPermission(true);
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        await refetch();
-        setPermissionDenied(false);
-      } catch (err) {
-        console.error("Permissão negada ou erro:", err);
-        setPermissionDenied(true);
-      } finally {
-        setCheckingPermission(false);
-      }
-    }
-    requestPermission();
-  }, [refetch]);
-
-  useEffect(() => {
-    async function enableDevices() {
-      if (data) {
-        if (!cameraId && data.cameras?.length) {
-          await setCamera(data.cameras[0].deviceId);
-        }
-        if (!micId && data.mics?.length) {
-          await setMic(data.mics[0].deviceId);
-        }
-        if (!videoEnabled) await enableVideo();
-        if (!audioEnabled) await enableAudio();
-      }
-    }
-    enableDevices();
-  }, [data, cameraId, micId, setCamera, setMic, enableVideo, enableAudio, videoEnabled, audioEnabled]);
-
-  function onBack() {
-    window.history.back();
-  }
-
-  // Inicia entrevista: abre stream, exibe prep de 5s da 1ª pergunta
-  async function handleStartInterview() {
-    if (checkingPermission) {
-      toast.error("Ative câmera e microfone na prévia antes de iniciar.");
-      return;
-    }
-    if (permissionDenied) {
-      toast.error("Permissão para câmera e microfone negada.");
-      return;
-    }
-
-    await openStream(cameraId, micId);
-    setCurrentIdx(0);
-    setPrepLeft(PREP_SECONDS);
-    setPhase("prep");
-  }
-
-  // Ao final do prep, começa a gravar a pergunta atual
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (phase !== "prep") return;
-    startedRef.current = false;
-
-    const id = window.setInterval(() => {
-      setPrepLeft((v) => {
-        if (v <= 1) {
-          window.clearInterval(id);
-          return 0;
-        }
-        return v - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(id);
-  }, [phase]);
-
-  // Quando terminou o prep (chegou em 0), inicia a gravação
-  useEffect(() => {
-    if (phase !== "prep" || prepLeft !== 0 || startedRef.current) return;
-    (async () => {
-      startedRef.current = true;
-      // garante stream vivo e de acordo com flags/ids
-      await openStream(cameraId, micId);
-      const recordable = await makeRecordableStream(); // já espelhado se mirror=true
-      setSourceStream(recordable);
-      start();
-      setPhase("recording");
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, prepLeft]);
-
   if (!candidateId) {
-    toast.error("ID do candidato não encontrado. Por favor, faça login novamente.");
-    return;
+    toast.error("ID do candidato não encontrado.");
+    return null;
   }
 
-  // Quando a gravação de UMA pergunta termina, salva e avança (ou finaliza)
   useEffect(() => {
-    if (!videoBlob) return;
-    const qNumber = currentIdx + 1;
+    const flag = localStorage.getItem("entrevista_video_bloqueada");
 
-    // TODO: enviar para o backend aqui (videoBlob → blob fetch/POST). Exemplo:
-    // await uploadAnswer({ questionIndex: currentIdx, url: videoBlob });
-
-    toast.success(`Questão ${qNumber} gravada com sucesso.`);
-
-    if (!isLast) {
-      // próxima pergunta: prep novamente
-      setCurrentIdx((i) => i + 1);
-      setPrepLeft(PREP_SECONDS);
-      setPhase("prep");
-    } else {
-      // última questão finalizada — volta para estado ocioso (ou redirecione)
+    if (!skipAutoNavigation && flag === "true" && phase === "idle") {
       powerOff();
       navigate({
         to: "/selection-process/$candidateId",
         params: { candidateId },
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoBlob]);
+  }, [phase]);
 
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "";
+      };
 
-  // Avançar manualmente antes de 2min → confirmar parada
-  function handleAdvance() {
-    if (phase === "recording") {
-      setOpenStop(true);
+      window.addEventListener("beforeunload", handler);
+      return () => window.removeEventListener("beforeunload", handler);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handleBack = (e: PopStateEvent) => {
+        e.preventDefault();
+        setOpenExitTest(true);
+        window.history.pushState(null, "", window.location.pathname);
+      };
+
+      window.history.pushState(null, "", window.location.pathname);
+      window.addEventListener("popstate", handleBack);
+
+      return () => window.removeEventListener("popstate", handleBack);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setCheckingPermission(true);
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        await refetch();
+        setPermissionDenied(false);
+      } catch {
+        setPermissionDenied(true);
+      } finally {
+        setCheckingPermission(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (data) {
+      if (!cameraId && data.cameras?.length) setCamera(data.cameras[0].deviceId);
+      if (!micId && data.mics?.length) setMic(data.mics[0].deviceId);
+    }
+  }, [data]);
+
+  async function handleAllVideosReady(blobs: (Blob | null)[]) {
+    setSkipAutoNavigation(true);
+    if (!candidateId || !testId) return toast.error("Dados inválidos.");
+
+    try {
+      setGlobalLoading(true);
+      console.log("🚀 Enviando vídeos gravados:", blobs.length);
+
+      for (let i = 0; i < blobs.length; i++) {
+        const blob = blobs[i];
+        if (!blob) continue;
+
+        const q = questions[i];
+        const file = new File([blob], `resposta_${i + 1}.mp4`, { type: "video/mp4" });
+
+        console.log(`📤 Enviando resposta ${i + 1} (${q.id})...`);
+        await uploadVideo(file, q.id, q.questionOrder, "QuestionAnswer", candidateId);
+      }
+
+      await submitTest(candidateId);
+      toast.success("✅ Teste submetido com sucesso!");
+      powerOff();
+      navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+    } catch (err) {
+      console.error("❌ Erro ao enviar vídeos:", err);
+      toast.error("Erro ao enviar vídeos.");
+    } finally {
+      setGlobalLoading(false);
     }
   }
 
-  // webcam só aparece quando gravando (para não pedir permissão antes)
-  const webcam = useMemo(() => {
-    if (phase !== "recording") return null;
-    return (
-      <Webcam
-        videoConstraints={
-          videoEnabled && cameraId
-            ? { deviceId: { exact: cameraId }, width: 960, height: 540 }
-            : { width: 960, height: 540 }
-        }
-        audio={!!audioEnabled}
-        muted
-        mirrored={!!mirror}
-        className="aspect-video w-full bg-[url('/checker.svg')] bg-center object-cover"
-      />
-    );
-  }, [phase, videoEnabled, cameraId, audioEnabled, mirror]);
+  async function handleButtonClick() {
+    setLoadingStart(true);
 
-  // Overlay da contagem regressiva (5 → 0) antes de cada pergunta
-  const prepOverlay =
-    phase === "prep" ? (
-      <div className="absolute inset-0 grid place-items-center bg-black/40">
-        <div className="flex h-28 w-28 items-center justify-center rounded-full bg-white/90 shadow-xl">
-          <span className="text-4xl font-semibold text-gray-900">{prepLeft}</span>
-        </div>
-      </div>
-    ) : null;
+    if (!candidateId) {
+      toast.error("ID do candidato não encontrado.");
+      return null;
+    }
+
+    try {
+      const media = useMediaStore.getState();
+      await media.enableVideo();
+      await media.enableAudio();
+
+      const ok = await media.openStream(cameraId, micId);
+      if (!ok) throw new Error("Erro ao abrir câmera/microfone");
+
+      const createdTestId = await createOrGetActiveTest(
+        candidateId,
+        TestType.Interview
+      );
+
+      if (!createdTestId) return;
+
+      setOpenStart(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao preparar gravação.");
+    } finally {
+      setLoadingStart(false);
+    }
+  }
+
+  const handleConfirmStart = async () => {
+    setOpenStart(false);
+    setLoadingStart(true);
+    setInstructionsPanel(true);
+
+    localStorage.setItem("entrevista_video_bloqueada", "true");
+
+    try {
+      const ok = await openStream(cameraId, micId);
+      if (!ok) throw new Error("Falha ao abrir câmera/microfone");
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      startPrep();
+    } catch (err) {
+      toast.error("Erro ao iniciar gravação.");
+    } finally {
+      setLoadingStart(false);
+    }
+  };
+
+  const handleConfirmStop = () => {
+    setOpenStop(false);
+    stop();
+  };
+
+  function onBack() {
+    if (phase !== "idle") {
+      setOpenExitTest(true);
+      return;
+    }
+    window.history.back();
+  }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB]">
-      {/* Topbar */}
+    <div className="min-h-screen bg-[#F9FAFB] relative">
       <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b-2 md:border-gray-200">
         <div className="relative flex h-full items-center px-4 md:px-6">
           {phase === "idle" && (
             <button
               onClick={onBack}
-              className="inline-flex items-center gap-2 text-white md:text-gray-600 md:hover:text-gray-800"
+              disabled={globalLoading || loadingStart}
+              className={`inline-flex items-center gap-2 ${globalLoading || loadingStart ? "opacity-50 cursor-not-allowed" : ""
+                } text-white md:text-gray-600 md:hover:text-gray-800`}
             >
               <ChevronLeft className="size-5" />
               <span className="hidden md:inline text-sm">Voltar ao menu</span>
@@ -237,128 +265,92 @@ export default function VideoInterviewPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1100px] px-6 py-8">
-        {/* INSTRUÇÕES — apenas antes de iniciar */}
-        {phase === "idle" && <InstructionsPanel />}
-
-        <div className="mx-auto w-full max-w-[920px]">
-          {/* Tabs + enunciado — visíveis durante prep e gravação */}
-          {phase !== "idle" && (
-            <>
-              <div className="mb-4 flex flex-wrap items-center justify-center gap-3 font-bold">
-                {INTERVIEW_QUESTIONS.map((_, i) => {
-                  const active = i === currentIdx;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      disabled={i !== currentIdx}
-                      className={[
-                        "rounded-full px-5 py-2 text-sm transition-colors",
-                        active
-                          ? "bg-[#0385d1] text-white"
-                          : "bg-gray-100 text-gray-500",
-                      ].join(" ")}
-                    >
-                      {`Questão #${i + 1}`}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="mb-4 text-center text-[18px] text-gray-700 font-bold">
-                {INTERVIEW_QUESTIONS[currentIdx].text}
-              </p>
-            </>
-          )}
-
-          {/* Webcam + overlay */}
-          <div className="relative overflow-hidden rounded-lg border border-gray-300 bg-white">
-            {phase === "idle" ? (
-              <div className="aspect-video w-full bg-gray-100 flex items-center justify-center text-gray-400">
-                Preview da câmera aparecerá aqui
-              </div>
-            ) : phase === "recording" ? (
-              webcam
-            ) : (
-              <div className="aspect-video w-full bg-gray-100 flex items-center justify-center text-gray-400">
-                Preview da câmera aparecerá aqui
-              </div>
-            )}
-
-            {/* Overlay de preparação, se houver */}
-            {prepOverlay}
-          </div>
-
-          {/* Progresso — só durante a gravação da pergunta */}
-          {phase === "recording" && (
-            <TimerProgress
-              elapsed={elapsed}
-              limitSeconds={QUESTION_LIMIT_SECONDS}
-              className="mt-4"
+      <main className="mx-auto w-full lg:max-w-[1000px] px-6 py-8">
+        {!instructionsPanel && (
+          <InstructionsPanel />
+        )}
+        
+        {phase !== "idle" && questions.length > 0 && (
+          <>
+            <QuestionNavigator
+              questions={questions}
+              currentIdx={currentIdx}
             />
-          )}
+            <p className="mb-4 text-center text-lg font-semibold text-gray-700">
+              {questions[currentIdx]?.questionText}
+            </p>
+          </>
+        )}
 
-          {/* Botões */}
-          <div className="mt-6 flex items-center justify-center">
-            {phase === "recording" ? (
-              <Button
-                onClick={handleAdvance}
-                className={
-                  isLast
-                    ? "rounded-lg bg-red-600 text-white hover:bg-red-700"
-                    : "rounded-lg bg-[#0385d1] text-white hover:bg-[#0271b2]"
-                }
-              >
-                {isLast ? (
-                  <>
-                    <Square className="mr-2 h-4 w-4" />
-                    Finalizar
-                  </>
-                ) : (
-                  <>
-                    Avançar
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            ) : phase === "idle" ? (
-              <Button
-                onClick={() => setOpenStart(true)}
-                className="rounded-lg bg-[#0385d1] text-white hover:bg-[#0271b2]"
-              >
-                <Circle className="mr-2 h-4 w-4 fill-current" />
-                Iniciar gravação
-              </Button>
-            ) : (
-              // Durante o prep, apenas um estado desabilitado
-              <Button disabled className="rounded-lg bg-gray-300 text-gray-700">
-                Preparando…
-              </Button>
-            )}
-          </div>
+        <QuestionVideo
+          phase={phase}
+          cameraId={cameraId ?? null}
+          mirror={mirror}
+          videoEnabled={videoEnabled}
+          audioEnabled={audioEnabled}
+          prepLeft={prepLeft}
+          elapsed={elapsed}
+          limitSeconds={PER_QUESTION_SECONDS}
+        />
 
-          {/* Modais */}
-          <ConfirmStartDialog
-            open={openStart}
-            onOpenChange={setOpenStart}
-            minutes={TOTAL_MINUTES}
-            onConfirm={handleStartInterview}
+        <div className="mt-6 flex items-center justify-center">
+          <TestControls
+            phase={phase}
+            isLast={isLast}
+            onStart={handleButtonClick}
+            onStop={() => setOpenStop(true)}
+            loading={loadingStart || isLoading}
+            disabled={checkingPermission || permissionDenied}
           />
-          <ConfirmStopDialog
-            open={openStop}
-            onOpenChange={setOpenStop}
-            onConfirm={() => stop()}
-            description={
-              isLast
-                ? "Você está prestes a finalizar a entrevista. Deseja encerrar agora?"
-                : "Avançar agora encerrará e enviará a resposta desta pergunta. Deseja continuar?"
-            }
-          />
-
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         </div>
+
+        <ConfirmStartDialog
+          open={openStart}
+          onOpenChange={setOpenStart}
+          minutes={totalMinutes}
+          onConfirm={handleConfirmStart}
+        />
+
+        <ConfirmStopDialog
+          open={openStop}
+          onOpenChange={setOpenStop}
+          onConfirm={handleConfirmStop}
+          description={
+            isLast
+              ? "Você está prestes a finalizar a entrevista. Deseja encerrar agora?"
+              : "Avançar agora encerrará e enviará a resposta desta pergunta. Deseja continuar?"
+          }
+        />
+
+        <ConfirmExitTestDialog
+          open={openExitTest}
+          onOpenChange={setOpenExitTest}
+          onConfirm={() => {
+            powerOff();
+            localStorage.removeItem("entrevista_video_bloqueada");
+            navigate({
+              to: "/selection-process/$candidateId",
+              params: { candidateId },
+            });
+          }}
+        />
+
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </main>
+
+      {(globalLoading || loadingStart) && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 text-white backdrop-blur-sm">
+          <Loader2 className="animate-spin w-16 h-16 mb-6" />
+          <p className="text-lg font-semibold">
+            {globalLoading ? "Enviando suas respostas..." : "Preparando gravação..."}
+          </p>
+          <p className="text-sm text-gray-300 mt-2">
+            {globalLoading
+              ? "Por favor, não feche nem recarregue a página."
+              : "Aguarde enquanto configuramos sua câmera e microfone."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

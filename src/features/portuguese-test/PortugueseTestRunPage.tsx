@@ -14,6 +14,8 @@ import { QuestionVideo } from "@/components/QuestionVideo";
 import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
 import { ConfirmStopDialog } from "@/components/media/ConfirmStopDialog";
 import { useTestFlowPortuguese } from "@/hooks/useTestFlowPortuguese";
+import { ConfirmExitTestDialog } from "@/components/ConfirmExitTestDialog";
+
 
 const PREP_SECONDS = 5;
 const PER_QUESTION_SECONDS = 60;
@@ -60,8 +62,21 @@ export default function PortugueseTestRunPage() {
 
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
+  const [openExitTest, setOpenExitTest] = useState(false);
+  const [skipAutoNavigation, setSkipAutoNavigation] = useState(false);
+
+  useEffect(() => {
+    const bloqueada = localStorage.getItem("prova_portugues_bloqueada");
+
+    if (!skipAutoNavigation && bloqueada === "true" && phase === "idle") {
+      powerOff();
+      navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+    }
+  }, [phase]);
 
   async function handleAllVideosReady(blobs: (Blob | null)[]) {
+    setSkipAutoNavigation(true);
+
     if (!candidateId || !testId) return toast.error("Dados inválidos.");
 
     try {
@@ -212,6 +227,8 @@ export default function PortugueseTestRunPage() {
     setOpenStart(false);
     setLoadingStart(true);
 
+    localStorage.setItem("prova_portugues_bloqueada", "true");
+
     try {
       const streamOk = await openStream(cameraId, micId);
       if (!streamOk) throw new Error("Falha ao abrir câmera/microfone");
@@ -232,8 +249,40 @@ export default function PortugueseTestRunPage() {
   };
 
   function onBack() {
-    if (!globalLoading && !loadingStart) window.history.back();
+    if (phase !== "idle") {
+      setOpenExitTest(true);
+      return;
+    }
+    window.history.back();
   }
+
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handleBack = (e: PopStateEvent) => {
+        e.preventDefault();
+        setOpenExitTest(true);
+        window.history.pushState(null, "", window.location.pathname);
+      };
+
+      window.history.pushState(null, "", window.location.pathname);
+      window.addEventListener("popstate", handleBack);
+
+      return () => window.removeEventListener("popstate", handleBack);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "idle") {
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "";
+      };
+
+      window.addEventListener("beforeunload", handler);
+
+      return () => window.removeEventListener("beforeunload", handler);
+    }
+  }, [phase]);
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] relative">
@@ -313,6 +362,15 @@ export default function PortugueseTestRunPage() {
               ? "Você está prestes a finalizar o teste. Deseja encerrar agora?"
               : "Avançar agora encerrará e enviará a resposta desta pergunta. Deseja continuar?"
           }
+        />
+
+        <ConfirmExitTestDialog
+          open={openExitTest}
+          onOpenChange={setOpenExitTest}
+          onConfirm={() => {
+            powerOff();
+            navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+          }}
         />
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
