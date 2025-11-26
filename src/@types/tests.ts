@@ -144,12 +144,14 @@ export interface TestQuestion {
 
 export interface TestInstanceV2 {
   id: string;
-  testType: string; // "Psychology", "Portuguese", etc.
+  testType: string;
   status: 'NotStarted' | 'InProgress' | 'Submitted' | 'Approved' | 'Rejected';
   startedAt: string | null;
   completedAt: string | null;
   timeLimitSeconds: number | null;
   questions: TestQuestion[];
+  // Adicionado para permitir o acesso às respostas salvas
+  questionResponses?: QuestionResponseDto[]; 
 }
 
 export interface AnswerPayload {
@@ -161,8 +163,9 @@ export interface AnswerPayload {
 export interface SubmitTestPayload {
   testId: string;
   candidateId: string;
-  answers: AnswerPayload[]; // Para Psicologia deve ser enviado vazio [] no submit final
+  answers: AnswerPayload[];
 }
+
 export interface Option {
   id: string
   label: string
@@ -170,7 +173,7 @@ export interface Option {
 
 export interface Question {
   id: string
-  prompt: string // O componente visual espera 'prompt', a API manda 'questionText'
+  prompt: string
   options: Option[]
   type: 'single' | 'multi' | 'text' | 'number' | 'range'
   maxSelections?: number
@@ -180,6 +183,7 @@ export interface Question {
 }
 
 export type Answers = Record<string, string | string[] | number | null>
+
 export interface Section {
   id: string
   title: string

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// src/hooks/usePsychologyTest.ts
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { API_PATHS, TestType } from '@/api/apiPaths';
@@ -7,7 +8,6 @@ import { toast } from 'sonner';
 
 export const usePsychologyTest = (candidateId: string) => {
   const queryClient = useQueryClient();
-  const [currentTestId, setCurrentTestId] = useState<string | null>(null);
 
   // 1. Busca ou Cria o Teste
   const fetchOrCreateTest = async (): Promise<TestInstanceV2> => {
@@ -31,20 +31,20 @@ export const usePsychologyTest = (candidateId: string) => {
       const { data: fullTest } = await apiClient.get<TestInstanceV2>(
         API_PATHS.TESTS_V2.GET_BY_ID(existingTestId, candidateId)
       );
-      setCurrentTestId(fullTest.id);
+      // setCurrentTestId(fullTest.id); // REMOVIDO
       return fullTest;
     }
 
-    // PASSO C: Se não existe, CRIA um novo (o create já retorna completo)
+    // PASSO C: Se não existe, CRIA um novo
     const { data: newTest } = await apiClient.post<TestInstanceV2>(
       API_PATHS.TESTS_V2.CREATE,
       {
         candidateId,
         testType: TestType.Psychology,
-        difficultyLevel: "medium" // Obrigatório
+        difficultyLevel: "medium" 
       }
     );
-    setCurrentTestId(newTest.id);
+    // setCurrentTestId(newTest.id); // REMOVIDO
     return newTest;
   };
 
@@ -52,9 +52,12 @@ export const usePsychologyTest = (candidateId: string) => {
     queryKey: ['psychology-test', candidateId],
     queryFn: fetchOrCreateTest,
     retry: false,
-    staleTime: Infinity, // Evita refetch automático
+    staleTime: Infinity, 
     refetchOnWindowFocus: false,
   });
+
+  // CORREÇÃO: Deriva o ID diretamente dos dados carregados
+  const currentTestId = testInstance?.id;
 
   // 2. Iniciar o Teste (Start Timer)
   const startTestMutation = useMutation({
@@ -62,7 +65,6 @@ export const usePsychologyTest = (candidateId: string) => {
       return apiClient.post(API_PATHS.TESTS_V2.START(testId, candidateId));
     },
     onSuccess: () => {
-      // Invalida a query para garantir que o status atualizado (InProgress) seja refletido
       queryClient.invalidateQueries({ queryKey: ['psychology-test', candidateId] });
     }
   });
@@ -70,9 +72,9 @@ export const usePsychologyTest = (candidateId: string) => {
   // 3. Enviar Respostas (Endpoint /answers)
   const submitAnswersMutation = useMutation({
     mutationFn: async (answers: AnswerPayload[]) => {
+      // Agora verifica a variável derivada, que sempre existirá se o teste carregou
       if (!currentTestId) throw new Error("Test ID not found");
       
-      // O backend espera um ARRAY direto no body
       return apiClient.post(
         API_PATHS.TESTS_V2.SUBMIT_ANSWERS(currentTestId, candidateId),
         answers 
@@ -88,7 +90,6 @@ export const usePsychologyTest = (candidateId: string) => {
     mutationFn: async () => {
       if (!currentTestId) throw new Error("Test ID not found");
 
-      // Para Psicologia, enviamos answers: [] pois já foram enviadas via /answers
       return apiClient.post(API_PATHS.TESTS_V2.SUBMIT(currentTestId), {
         testId: currentTestId,
         candidateId,
@@ -105,7 +106,6 @@ export const usePsychologyTest = (candidateId: string) => {
     }
   });
 
-  // Efeito para iniciar o teste automaticamente se ele estiver "NotStarted"
   useEffect(() => {
     if (testInstance?.status === 'NotStarted' && testInstance.id && !startTestMutation.isPending) {
         startTestMutation.mutate(testInstance.id);
@@ -120,6 +120,6 @@ export const usePsychologyTest = (candidateId: string) => {
     isSavingAnswer: submitAnswersMutation.isPending,
     finishTest: finishTestMutation.mutateAsync,
     isFinishing: finishTestMutation.isPending,
-    refetch // Expondo caso precise recarregar manualmente
+    refetch 
   };
 };
