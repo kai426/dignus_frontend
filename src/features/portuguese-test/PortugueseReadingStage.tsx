@@ -29,7 +29,6 @@ type Props = {
 export function PortugueseReadingStage({
   testId,
   candidateId,
-  readingTextId,
   textToRead,
   onFinished,
 }: Props) {

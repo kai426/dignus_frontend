@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import Webcam from "react-webcam";
 import { TimerProgress } from "@/components/TimerProgress";
 

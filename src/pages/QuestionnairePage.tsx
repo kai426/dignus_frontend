@@ -9,8 +9,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { usePsychologyTest } from "@/hooks/usePsychologyTest";
 import {
-  TEST_SECTIONS,
-  OPTION_ID_SIM
+  TEST_SECTIONS
 } from "@/constant/constants";
 import type { TestQuestion, Question, Option } from "@/@types/tests";
 import { toast } from "sonner";
@@ -27,7 +26,10 @@ const QuestionnairePage = () => {
     error,
     submitAnswer,
     finishTest,
-    isFinishing
+    isFinishing,
+    updatePCDStatus,
+    updateForeignerStatus,
+    uploadPCDDocument
   } = usePsychologyTest(candidateId);
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
@@ -149,6 +151,7 @@ const QuestionnairePage = () => {
 
   const isLastSection = currentSectionIndex === TEST_SECTIONS.length - 1;
 
+  // --- CORREÇÃO AQUI ---
   const parseQuestion = (q: TestQuestion): Question => {
     let parsedOptions: Option[] = [];
     try {
@@ -157,7 +160,11 @@ const QuestionnairePage = () => {
         if (!Array.isArray(rawOpts) && typeof rawOpts === "object") {
           parsedOptions = Object.entries(rawOpts).map(([key, value]) => ({ id: key, label: String(value) }));
         } else if (Array.isArray(rawOpts)) {
-          parsedOptions = rawOpts.map((o: any) => ({ id: o.id || o.key, label: o.text || o.label || o.value || String(o) }));
+          // ADICIONADO: 'idx' como fallback para garantir ID único se o JSON não tiver id/key
+          parsedOptions = rawOpts.map((o: any, idx: number) => ({
+            id: o.id || o.key || String(idx),
+            label: o.text || o.label || o.value || String(o)
+          }));
         }
       }
     } catch (e) { console.error("Erro parse options", e); }
@@ -201,30 +208,25 @@ const QuestionnairePage = () => {
   };
 
   const canAdvance = useMemo(() => {
-    const allAnswered = questionsInCurrentSection.every(
-      (q) => localAnswers[q.id] && localAnswers[q.id].length > 0
-    );
+    return questionsInCurrentSection.every((q) => {
+      const answer = localAnswers[q.id]?.[0];
+      const parsedQ = parseQuestion(q);
+      const simOptionId = parsedQ.options.find(o => o.label.toLowerCase() === "sim")?.id;
 
-    if (!allAnswered) return false;
+      if (!answer || answer.length === 0) return false;
 
-    const pcdQuestion = pcdQuestionId ? questionsInCurrentSection.find(q => q.id === pcdQuestionId) : null;
-    const foreignerQuestion = foreignerQuestionId ? questionsInCurrentSection.find(q => q.id === foreignerQuestionId) : null;
-
-    if (pcdQuestion) {
-      const answer = localAnswers[pcdQuestion.id]?.[0];
-      if (answer === OPTION_ID_SIM) {
+      // PCD
+      if (q.id === pcdQuestionId && answer === simOptionId) {
         if (!pcdCid.trim() || !validateCidFormat(pcdCid) || !pcdFile) return false;
       }
-    }
 
-    if (foreignerQuestion) {
-      const answer = localAnswers[foreignerQuestion.id]?.[0];
-      if (answer === OPTION_ID_SIM) {
+      // Estrangeiro
+      if (q.id === foreignerQuestionId && answer === simOptionId) {
         if (!nationality) return false;
       }
-    }
 
-    return true;
+      return true;
+    });
   }, [questionsInCurrentSection, localAnswers, pcdCid, pcdFile, nationality, pcdQuestionId, foreignerQuestionId]);
 
 
@@ -261,6 +263,76 @@ const QuestionnairePage = () => {
       });
   };
 
+  const MAX_FILE_SIZE_MB = 10;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+  const ALLOWED_MIME_TYPES = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ];
+
+  const processSpecialFieldsBeforeFinish = async () => {
+    const parsedPCDQuestion = questionsInCurrentSection.find(q => q.id === pcdQuestionId);
+    const parsedForeignerQuestion = questionsInCurrentSection.find(q => q.id === foreignerQuestionId);
+
+    const simOptionIdPCD = parsedPCDQuestion
+      ? parseQuestion(parsedPCDQuestion).options.find(o => o.label.toLowerCase() === "sim")?.id
+      : null;
+
+    const simOptionIdForeigner = parsedForeignerQuestion
+      ? parseQuestion(parsedForeignerQuestion).options.find(o => o.label.toLowerCase() === "sim")?.id
+      : null;
+
+    const isPCD = pcdQuestionId && simOptionIdPCD
+      ? localAnswers[pcdQuestionId]?.includes(simOptionIdPCD)
+      : false;
+
+    const isForeigner = foreignerQuestionId && simOptionIdForeigner
+      ? localAnswers[foreignerQuestionId]?.includes(simOptionIdForeigner)
+      : false;
+
+
+    if (isPCD && pcdFile) {
+      if (pcdFile.size > MAX_FILE_SIZE_BYTES) {
+        toast.error("Arquivo maior que o limite de 10MB.");
+        throw new Error("File size exceeds maximum allowed size of 10MB");
+      }
+
+      if (!ALLOWED_MIME_TYPES.includes(pcdFile.type)) {
+        toast.error("Formato inválido. Apenas PDF e DOCX são permitidos.");
+        throw new Error("Invalid file type. Only PDF and DOCX files are allowed");
+      }
+    }
+
+    try {
+      await updatePCDStatus(isPCD);
+
+      if (isPCD && pcdFile) {
+        await uploadPCDDocument(pcdFile);
+        console.log("📤 Arquivo PCD enviado com sucesso!");
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Erro ao atualizar informações de PCD.";
+      toast.error(msg);
+      console.error("Erro PCD:", msg);
+      throw err;
+    }
+
+    try {
+      await updateForeignerStatus({
+        isForeigner,
+        countryOfOrigin: isForeigner ? nationality || null : null,
+      });
+
+      console.log("🌍 Estrangeiro atualizado.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Erro ao atualizar informações de estrangeiro.";
+      toast.error(msg);
+      console.error("Erro estrangeiro:", msg);
+      throw err;
+    }
+  };
+
   const handleFinish = async () => {
     setIsSendingFinal(true);
 
@@ -275,11 +347,15 @@ const QuestionnairePage = () => {
 
     try {
       await submitAnswer(answersToSubmit);
+
+      await processSpecialFieldsBeforeFinish();
+
       await finishTest();
 
       localStorage.removeItem(STORAGE_KEY);
 
       navigate({ to: "/selection-process/$candidateId", params: { candidateId } });
+
     } catch (error) {
       console.error(error);
       toast.error("Erro ao finalizar teste.");
@@ -320,6 +396,8 @@ const QuestionnairePage = () => {
               prompt: `${visualIndex}. ${parsedQ.prompt}`
             };
 
+            const simOptionId = parsedQ.options.find(o => o.label.toLowerCase() === "sim")?.id;
+
             return (
               <div key={q.id} className="flex flex-col gap-4">
                 <QuestionBlock
@@ -328,7 +406,7 @@ const QuestionnairePage = () => {
                   onChange={(val) => handleAnswerChange(q.id, val)}
                 />
 
-                {pcdQuestionId && q.id === pcdQuestionId && localAnswers[q.id]?.includes(OPTION_ID_SIM) && (
+                {pcdQuestionId && q.id === pcdQuestionId && simOptionId && localAnswers[q.id]?.includes(simOptionId) && (
                   <div className="ml-6 border-l-2 border-blue-200 pl-6 animate-in fade-in slide-in-from-top-2">
                     <div className="mb-4 max-w-sm">
                       <Label htmlFor="cid-input">Informe o código CID</Label>
@@ -354,7 +432,7 @@ const QuestionnairePage = () => {
                   </div>
                 )}
 
-                {foreignerQuestionId && q.id === foreignerQuestionId && localAnswers[q.id]?.includes(OPTION_ID_SIM) && (
+                {foreignerQuestionId && q.id === foreignerQuestionId && simOptionId && localAnswers[q.id]?.includes(simOptionId) && (
                   <div className="ml-6 border-l-2 border-blue-200 pl-6 animate-in fade-in slide-in-from-top-2">
                     <CountrySelect value={nationality} onChange={setNationality} />
                   </div>

@@ -28,10 +28,10 @@ import Q26 from "./q26";
 import Q27 from "./q27";
 import Q28 from "./q28";
 import Q29 from "./q29";
-import Q30 from "./q30";
+// import Q30 from "./q30";
 
 export const QUESTIONS: QuestionSpec[] = [
   Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, 
   Q11, Q12, Q13, Q14, Q15, Q16, Q17, Q18, Q19, Q20,
-  Q21, Q22, Q23, Q24, Q25, Q26, Q27, Q28, Q29, Q30,
+  Q21, Q22, Q23, Q24, Q25, Q26, Q27, Q28, Q29,
 ];

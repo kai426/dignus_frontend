@@ -1,30 +1,76 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { getStoredCandidate } from "@/api/auth";
+import { TestType } from "@/api/apiPaths";
+import { ConfirmStartDialog } from "@/components/media/ConfirmStartDialog";
+import { useVisualRetentionTest } from "@/hooks/useVisualRetentionTest";
 
 export default function IntroPage() {
   const navigate = useNavigate();
 
-  const handleBack = () => {
-    window.history.back();
-  };
+  const { createOrGetActiveTest, questions, startTest } = useVisualRetentionTest();
+
+  const candidate = getStoredCandidate();
+  const candidateId = candidate?.id;
+
+  const [openStart, setOpenStart] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const totalMinutes = 25;
+
+  const handleBack = () => window.history.back();
+
+  async function handleStartClick() {
+    if (!candidateId) return;
+
+    setLoading(true);
+
+    try {
+      const testId = await createOrGetActiveTest(candidateId, TestType.VisualRetention);
+
+      console.log("q:", questions);
+
+      if (!testId) {
+        setLoading(false);
+        return;
+      }
+
+      setOpenStart(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleConfirm() {
+    setOpenStart(false);
+
+    await startTest(candidateId!);
+
+    localStorage.setItem("prova_visual_bloqueada", "true");
+
+    navigate({ to: "/retencao-visual/teste" });
+  }
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-          <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b-2 md:border-gray-200">
-            <div className="relative flex h-full items-center px-4 md:px-6">
-              <button
-                onClick={handleBack}
-                className="inline-flex items-center gap-2 text-white md:text-gray-600 md:hover:text-gray-800"
-              >
-                <ChevronLeft className="size-5" />
-                <span className="hidden md:inline text-sm">Voltar ao menu</span>
-              </button>
-              <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[18px] font-semibold text-white md:text-[20px] md:text-gray-900">
-                Retenção Visual
-              </h1>
-            </div>
-          </header>
+      <header className="sticky top-0 z-10 w-full h-16 bg-[#0385D1] text-white md:bg-white md:text-gray-900 md:border-b-2 md:border-gray-200">
+        <div className="relative flex h-full items-center px-4 md:px-6">
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 text-white md:text-gray-600 md:hover:text-gray-800"
+          >
+            <ChevronLeft className="size-5" />
+            <span className="hidden md:inline text-sm">Voltar ao menu</span>
+          </button>
+          <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[18px] font-semibold text-white md:text-[20px] md:text-gray-900">
+            Retenção Visual
+          </h1>
+        </div>
+      </header>
 
       <main className="flex items-center justify-center px-6 py-8">
         <section className="w-full max-w-[560px] rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
@@ -53,13 +99,21 @@ export default function IntroPage() {
           </div>
 
           <Button
-            onClick={() => navigate({ to: "/retencao-visual/teste" })}
+            onClick={handleStartClick}
+            disabled={loading}
             className="mt-6 inline-flex rounded-lg bg-[#0385d1] px-6 py-2 text-white hover:bg-[#0271b2]"
           >
-            Começar
+            {loading ? "Carregando..." : "Começar"}
           </Button>
         </section>
       </main>
+
+      <ConfirmStartDialog
+        open={openStart}
+        onOpenChange={setOpenStart}
+        minutes={totalMinutes}
+        onConfirm={handleConfirm}
+      />
     </div>
   );
 }

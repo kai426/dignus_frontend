@@ -13,7 +13,7 @@ export const usePsychologyTest = (candidateId: string) => {
   const fetchOrCreateTest = async (): Promise<TestInstanceV2> => {
     // PASSO A: Verifica se já existe um teste na lista
     let existingTestId: string | null = null;
-    
+
     try {
       const { data: existingTests } = await apiClient.get<TestInstanceV2[]>(
         API_PATHS.TESTS_V2.GET_ALL_FOR_CANDIDATE(candidateId, TestType.Psychology)
@@ -41,7 +41,7 @@ export const usePsychologyTest = (candidateId: string) => {
       {
         candidateId,
         testType: TestType.Psychology,
-        difficultyLevel: "medium" 
+        difficultyLevel: "medium"
       }
     );
     // setCurrentTestId(newTest.id); // REMOVIDO
@@ -52,7 +52,7 @@ export const usePsychologyTest = (candidateId: string) => {
     queryKey: ['psychology-test', candidateId],
     queryFn: fetchOrCreateTest,
     retry: false,
-    staleTime: Infinity, 
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
@@ -74,10 +74,10 @@ export const usePsychologyTest = (candidateId: string) => {
     mutationFn: async (answers: AnswerPayload[]) => {
       // Agora verifica a variável derivada, que sempre existirá se o teste carregou
       if (!currentTestId) throw new Error("Test ID not found");
-      
+
       return apiClient.post(
         API_PATHS.TESTS_V2.SUBMIT_ANSWERS(currentTestId, candidateId),
-        answers 
+        answers
       );
     },
     onError: () => {
@@ -85,7 +85,6 @@ export const usePsychologyTest = (candidateId: string) => {
     }
   });
 
-  // 4. Finalizar Teste (Endpoint /submit)
   const finishTestMutation = useMutation({
     mutationFn: async () => {
       if (!currentTestId) throw new Error("Test ID not found");
@@ -93,7 +92,7 @@ export const usePsychologyTest = (candidateId: string) => {
       return apiClient.post(API_PATHS.TESTS_V2.SUBMIT(currentTestId), {
         testId: currentTestId,
         candidateId,
-        answers: [] 
+        answers: []
       });
     },
     onSuccess: () => {
@@ -106,9 +105,73 @@ export const usePsychologyTest = (candidateId: string) => {
     }
   });
 
+  const updatePCDStatusMutation = useMutation({
+    mutationFn: async (isPCD: boolean) => {
+      return apiClient.patch(
+        `/api/Candidate/${candidateId}/pcd`,
+        { isPCD }
+      );
+    },
+    onSuccess: (response) => {
+      console.log("Status PCD atualizado.", response.data);
+    },
+    onError: () => toast.error("Erro ao atualizar status PCD.")
+  });
+
+  const updateForeignerStatusMutation = useMutation({
+    mutationFn: async ({
+      isForeigner,
+      countryOfOrigin
+    }: { isForeigner: boolean; countryOfOrigin: string | null }) => {
+      return apiClient.patch(
+        `/api/Candidate/${candidateId}/foreigner`,
+        {
+          isForeigner,
+          countryOfOrigin: isForeigner ? countryOfOrigin : null
+        }
+      );
+    },
+    onSuccess: (response) => {
+      console.log("Estrangeiro atualizado com sucesso:", response.data);
+    },
+    onError: () => toast.error("Erro ao atualizar status de estrangeiro.")
+  });
+
+  const uploadPCDDocumentMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error("Apenas arquivos PDF e DOCX são permitidos.");
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error("Arquivo excede 10MB.");
+      }
+
+      const formData = new FormData();
+      formData.append("document", file);
+
+      return apiClient.post(
+        `/api/Candidate/${candidateId}/pcd-document`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+    },
+    onSuccess: (response) => {
+      console.log("Documento PCD enviado:", response.data);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message ?? "Erro ao enviar documento PCD.");
+    }
+  });
+
   useEffect(() => {
     if (testInstance?.status === 'NotStarted' && testInstance.id && !startTestMutation.isPending) {
-        startTestMutation.mutate(testInstance.id);
+      startTestMutation.mutate(testInstance.id);
     }
   }, [testInstance?.status, testInstance?.id]);
 
@@ -120,6 +183,9 @@ export const usePsychologyTest = (candidateId: string) => {
     isSavingAnswer: submitAnswersMutation.isPending,
     finishTest: finishTestMutation.mutateAsync,
     isFinishing: finishTestMutation.isPending,
-    refetch 
+    updatePCDStatus: updatePCDStatusMutation.mutateAsync,
+    updateForeignerStatus: updateForeignerStatusMutation.mutateAsync,
+    uploadPCDDocument: uploadPCDDocumentMutation.mutateAsync,
+    refetch
   };
 };

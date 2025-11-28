@@ -1,10 +1,9 @@
 // src/features/portuguese-test/PortugueseTestRunPage.tsx
 import { useEffect, useState } from "react";
 import { useMediaStore } from "@/store/useMediaStore";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useMediaDevicesQuery } from "@/hooks/useMediaDevicesQuery";
 import { getStoredCandidate } from "@/api/auth";
-import { TestType, useTestFlow } from "@/hooks/useTestFlow";
 import { useQuestionRecorder } from "@/hooks/useQuestionRecorder";
 import { toast } from "sonner";
 import { ChevronLeft, Loader2 } from "lucide-react";
@@ -127,7 +126,7 @@ export default function PortugueseTestRunPage() {
       }
 
       if (readingVideo) {
-        const { blob, q, index } = readingVideo;
+        const { blob, index } = readingVideo;
 
         const file = new File([blob], "resposta_leitura.mp4", { type: "video/mp4" });
 

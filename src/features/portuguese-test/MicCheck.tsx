@@ -5,8 +5,6 @@ import { ChevronLeft } from "lucide-react";
 type Props = { onBack?: () => void; onSuccess: () => void };
 
 // formata mm:ss
-const fmt = (s: number) =>
-  `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 export default function MicCheck({ onBack, onSuccess }: Props) {
   const [recording, setRecording] = useState(false);

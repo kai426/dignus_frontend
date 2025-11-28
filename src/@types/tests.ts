@@ -182,6 +182,12 @@ export interface Question {
   pointValue?: number
 }
 
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
 export type Answers = Record<string, string | string[] | number | null>
 
 export interface Section {

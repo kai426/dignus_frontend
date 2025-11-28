@@ -108,7 +108,7 @@ export const useUploadVideoResponse = (): UseMutationResult<
 
       return uploadVideoApi({ testId: payload.testId, formData })
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       const type =
         variables.responseType === VideoResponseType.Reading
           ? 'Leitura'
